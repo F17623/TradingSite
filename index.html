@@ -4,91 +4,143 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Trading Risk & Performance Dashboard</title>
-
+  
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
-    body { background-color:#0b0e14; color:#e1e7ef; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; touch-action:manipulation; }
-    .card { background-color:#151a23; border:1px solid #232a3b; border-radius:12px; }
-    .status-badge-active { background-color:rgba(16,185,129,.15); color:#10b981; border:1px solid rgba(16,185,129,.3); }
-    .status-badge-locked { background-color:rgba(239,68,68,.15); color:#ef4444; border:1px solid rgba(239,68,68,.3); }
+    body {
+      background-color: #0b0e14;
+      color: #e1e7ef;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      touch-action: manipulation;
+    }
+    .card {
+      background-color: #151a23;
+      border: 1px solid #232a3b;
+      border-radius: 12px;
+    }
+    .status-badge-active {
+      background-color: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .status-badge-locked {
+      background-color: rgba(239, 68, 68, 0.15);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
   </style>
 </head>
 <body class="min-h-screen flex flex-col justify-between">
 
-  <!-- Авторизация -->
+  <!-- Секция Авторизации (Supabase Auth) -->
   <div id="authOverlay" class="fixed inset-0 z-50 bg-[#0b0e14] flex items-center justify-center p-4">
     <div class="card p-6 w-full max-w-sm shadow-2xl text-center space-y-6">
       <div>
-        <div class="inline-flex p-3 bg-blue-500/10 rounded-full text-blue-400 mb-3"><i class="fa-solid fa-shield-halved text-2xl"></i></div>
+        <div class="inline-flex p-3 bg-blue-500/10 rounded-full text-blue-400 mb-3">
+          <i class="fa-solid fa-shield-halved text-2xl"></i>
+        </div>
         <h2 class="text-xl font-bold">Trading Monitor</h2>
         <p class="text-xs text-gray-400 mt-1">Вход только для владельца</p>
       </div>
-      <form id="loginForm" class="space-y-4 text-left">
+
+      <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4 text-left">
         <div>
           <label class="block text-xs text-gray-400 mb-1">Email</label>
-          <input type="email" id="authEmail" required placeholder="your@email.com" class="w-full bg-[#0d1117] border border-[#232a3b] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+          <input type="email" id="authEmail" required placeholder="your@email.com"
+            class="w-full bg-[#0d1117] border border-[#232a3b] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
         </div>
         <div>
           <label class="block text-xs text-gray-400 mb-1">Пароль</label>
-          <input type="password" id="authPassword" required placeholder="••••••••" class="w-full bg-[#0d1117] border border-[#232a3b] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
+          <input type="password" id="authPassword" required placeholder="••••••••"
+            class="w-full bg-[#0d1117] border border-[#232a3b] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
         </div>
+
         <div id="authError" class="text-red-400 text-xs text-center hidden"></div>
-        <button type="submit" id="loginBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg transition-colors text-sm">Войти</button>
+
+        <button type="submit" id="loginBtn"
+          class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg transition-colors text-sm">
+          Войти в систему
+        </button>
       </form>
     </div>
   </div>
 
-  <!-- Дашборд -->
+  <!-- Главный Дашборд -->
   <div id="dashboardApp" class="hidden flex-1 flex flex-col max-w-xl mx-auto w-full p-4 space-y-4">
+    
+    <!-- Хедер -->
     <header class="flex justify-between items-center pb-2 border-b border-[#232a3b]">
       <div>
-        <h1 class="text-lg font-bold flex items-center gap-2"><i class="fa-solid fa-chart-line text-blue-400"></i> Risk Control</h1>
-        <p class="text-[10px] text-gray-400">Мониторинг торговли (только чтение) &bull; <span id="updatedAt">-</span></p>
+        <h1 class="text-lg font-bold flex items-center gap-2">
+          <i class="fa-solid fa-chart-line text-blue-400"></i> Risk Control
+        </h1>
+        <p class="text-[10px] text-gray-400">Мониторинг торговли (Read-Only)</p>
       </div>
-      <button id="logoutBtn" class="text-xs text-gray-400 hover:text-red-400 px-2 py-1 rounded border border-[#232a3b]"><i class="fa-solid fa-right-from-bracket"></i> Выход</button>
+      <button onclick="handleLogout()" class="text-xs text-gray-400 hover:text-red-400 px-2 py-1 rounded border border-[#232a3b]">
+        <i class="fa-solid fa-right-from-bracket"></i> Выход
+      </button>
     </header>
 
+    <!-- Карточка Статуса Рисков -->
     <div class="card p-4 space-y-3">
       <div class="flex justify-between items-center">
-        <span class="text-xs text-gray-400">Статус риск-менеджера</span>
-        <span id="riskStatusBadge" class="text-xs px-2.5 py-1 rounded-full font-semibold status-badge-active">Проверка...</span>
+        <span class="text-xs text-gray-400">Статус Риск-Менеджера</span>
+        <span id="riskStatusBadge" class="text-xs px-2.5 py-1 rounded-full font-semibold status-badge-active">
+          Проверка...
+        </span>
       </div>
       <div class="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-[#232a3b]/50">
-        <div><span class="text-gray-400">Режим торговли:</span><p id="tradeMode" class="font-medium text-white">-</p></div>
-        <div><span class="text-gray-400">Причина блокировки:</span><p id="lockReason" class="font-medium text-amber-400 truncate">-</p></div>
+        <div>
+          <span class="text-gray-400">Режим торговли:</span>
+          <p id="tradeMode" class="font-medium text-white">-</p>
+        </div>
+        <div>
+          <span class="text-gray-400">Причина блокировки:</span>
+          <p id="lockReason" class="font-medium text-amber-400 truncate">-</p>
+        </div>
       </div>
     </div>
 
+    <!-- Финансовый Результат (P&L) -->
     <div class="card p-4">
-      <span class="text-xs text-gray-400">Результат дня (закрытые сделки)</span>
+      <span class="text-xs text-gray-400">Сводка P&L (Cash)</span>
       <div class="flex items-baseline gap-2 mt-1">
         <span id="totalCash" class="text-3xl font-extrabold text-white">$0.00</span>
-        <span id="pnlLimits" class="text-xs font-semibold text-gray-400">--</span>
+        <span id="pnlPercent" class="text-xs font-semibold text-gray-400">--</span>
       </div>
-      <p class="text-[10px] text-gray-500 mt-2">День считается с 17:00 CT. Открытые позиции в сумму не входят.</p>
+      <p class="text-[10px] text-gray-500 mt-2">Автоматически рассчитывается через DB Triggers & Views</p>
     </div>
 
+    <!-- Текущие Позиции и Аккаунты -->
     <div class="card p-4">
-      <h3 class="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">Открытые позиции</h3>
-      <div id="accountsList" class="space-y-2"><div class="text-xs text-gray-500 text-center py-2">Загрузка...</div></div>
+      <h3 class="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">Открытые Позиции / Счета</h3>
+      <div id="accountsList" class="space-y-2">
+        <div class="text-xs text-gray-500 text-center py-2">Загрузка данных...</div>
+      </div>
     </div>
 
+    <!-- Последняя активность -->
     <div class="card p-4">
       <h3 class="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">Последняя активность</h3>
-      <div id="recentActivity" class="space-y-2 text-xs text-gray-300"><div class="text-xs text-gray-500 text-center py-2">Загрузка...</div></div>
+      <div id="recentActivity" class="space-y-2 text-xs text-gray-300">
+        <div class="text-xs text-gray-500 text-center py-2">Загрузка...</div>
+      </div>
     </div>
+
   </div>
 
-  <footer class="text-center py-3 text-[10px] text-gray-600">Защищённый монитор &bull; Supabase PostgreSQL</footer>
+  <footer class="text-center py-3 text-[10px] text-gray-600">
+    Защищенный монитор &bull; Подключен к Supabase PostgreSQL
+  </footer>
 
   <script>
+    // Инициализация Supabase
     const SUPABASE_URL = 'https://bdcfpihcusurmxsafpfb.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_fDSDr8EZiRjnTS7l4uFzAA_TeOJeDNu';
-
-    // ВАЖНО: переменная называется sb, а не supabase: имя supabase занято самой библиотекой
+    // Переменная называется sb: имя supabase занято самой библиотекой
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
     const $ = id => document.getElementById(id);
@@ -96,7 +148,7 @@
     const money = n => (n < 0 ? '-$' : '$') + Math.abs(n).toFixed(2);
     let refreshTimer = null;
 
-    // Торговый день: с 17:00 по Чикаго (сдвиг на +7 часов даёт нужную дату)
+    // Торговый день идёт с 17:00 по Чикаго (сдвиг на +7 часов даёт нужную дату)
     function tradingDay(date) {
       const s = date.toLocaleString('sv-SE', { timeZone: 'America/Chicago' });
       const d = new Date(s.replace(' ', 'T') + 'Z');
@@ -104,32 +156,39 @@
       return d.toISOString().slice(0, 10);
     }
 
+    // Проверка существующей сессии при загрузке
     document.addEventListener('DOMContentLoaded', async () => {
-      $('loginForm').addEventListener('submit', handleLogin);
-      $('logoutBtn').addEventListener('click', handleLogout);
       const { data: { session } } = await sb.auth.getSession();
-      if (session) showDashboard();
+      if (session) {
+        showDashboard();
+      }
     });
 
+    // Авторизация
     async function handleLogin(e) {
       e.preventDefault();
-      const errorEl = $('authError'), btn = $('loginBtn');
+      const email = $('authEmail').value.trim();
+      const password = $('authPassword').value;
+      const errorEl = $('authError');
+      const btn = $('loginBtn');
+
       errorEl.classList.add('hidden');
-      btn.disabled = true; btn.innerText = 'Вход...';
+      btn.disabled = true;
+      btn.innerText = 'Вход...';
+
       try {
-        const { error } = await sb.auth.signInWithPassword({
-          email: $('authEmail').value.trim(),
-          password: $('authPassword').value
-        });
+        const { error } = await sb.auth.signInWithPassword({ email, password });
         if (error) throw error;
         showDashboard();
       } catch (err) {
         errorEl.innerText = (err && err.message) ? err.message : 'Ошибка входа';
         errorEl.classList.remove('hidden');
       }
-      btn.disabled = false; btn.innerText = 'Войти';
+      btn.disabled = false;
+      btn.innerText = 'Войти в систему';
     }
 
+    // Выход
     async function handleLogout() {
       if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
       await sb.auth.signOut();
@@ -137,10 +196,14 @@
       $('authOverlay').classList.remove('hidden');
     }
 
+    // Показ дашборда и автообновление
     function showDashboard() {
       $('authOverlay').classList.add('hidden');
       $('dashboardApp').classList.remove('hidden');
+
       loadDashboardData();
+
+      // Авто-обновление каждые 5 секунд
       if (refreshTimer) clearInterval(refreshTimer);
       refreshTimer = setInterval(loadDashboardData, 5000);
     }
@@ -164,7 +227,6 @@
 
         renderStatus(risk, pb);
         renderTrades(rows, pb, risk);
-        $('updatedAt').innerText = new Date().toLocaleTimeString('ru-RU', { timeZone: 'America/Vancouver', hour12: false });
       } catch (err) {
         $('recentActivity').innerHTML = '<div class="text-red-400">Ошибка загрузки: ' + esc(err.message || err) + '</div>';
       }
@@ -201,23 +263,26 @@
 
       const list = Object.values(pairs);
       const total = list.reduce((s, p) => s + p.flatCash, 0);
+
       const el = $('totalCash');
       el.innerText = money(total);
       el.className = 'text-3xl font-extrabold ' + (total < 0 ? 'text-red-400' : total > 0 ? 'text-emerald-400' : 'text-white');
-      $('pnlLimits').innerText = 'лимиты: ' + money(Number(risk.loss_limit)) + ' / ' + money(Number(risk.profit_limit));
+      $('pnlPercent').innerText = 'лимиты: ' + money(Number(risk.loss_limit)) + ' / ' + money(Number(risk.profit_limit));
 
       const open = list.filter(p => p.net !== 0);
       $('accountsList').innerHTML = open.length
-        ? open.map(p => '<div class="flex justify-between text-xs"><span>' + esc(p.acc) + ' &bull; ' + esc(p.ins) + '</span><span class="font-semibold ' +
-            (p.net > 0 ? 'text-emerald-400' : 'text-red-400') + '">' + (p.net > 0 ? 'LONG ' : 'SHORT ') + Math.abs(p.net) + '</span></div>').join('')
+        ? open.map(p => '<div class="flex justify-between text-xs"><span>' + esc(p.acc) + ' &bull; ' + esc(p.ins) +
+            '</span><span class="font-semibold ' + (p.net > 0 ? 'text-emerald-400' : 'text-red-400') + '">' +
+            (p.net > 0 ? 'LONG ' : 'SHORT ') + Math.abs(p.net) + '</span></div>').join('')
         : '<div class="text-xs text-gray-500 text-center py-2">Нет открытых позиций</div>';
 
       const recent = rows.filter(r => r.instrument).slice(-10).reverse();
       $('recentActivity').innerHTML = recent.length
         ? recent.map(r => {
             const t = new Date(r.created_at).toLocaleTimeString('ru-RU', { timeZone: 'America/Vancouver', hour12: false });
-            return '<div class="flex justify-between"><span class="text-gray-500">' + t + '</span><span>' + esc(r.account_name) + '</span><span class="' +
-              (r.side > 0 ? 'text-emerald-400' : 'text-red-400') + '">' + (r.side > 0 ? 'BUY ' : 'SELL ') + r.qty + '</span><span>' + Number(r.price) + '</span></div>';
+            return '<div class="flex justify-between"><span class="text-gray-500">' + t + '</span><span>' + esc(r.account_name) +
+              '</span><span class="' + (r.side > 0 ? 'text-emerald-400' : 'text-red-400') + '">' + (r.side > 0 ? 'BUY ' : 'SELL ') + r.qty +
+              '</span><span>' + Number(r.price) + '</span></div>';
           }).join('')
         : '<div class="text-xs text-gray-500 text-center py-2">Сделок пока нет</div>';
     }
