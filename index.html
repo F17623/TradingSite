@@ -1,291 +1,684 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="ru" class="h-full bg-slate-950">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Trading Risk & Performance Dashboard</title>  
-  
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-  <style>
-    body {
-      background-color: #0b0e14;
-      color: #e1e7ef;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      touch-action: manipulation;
-    }
-    .card {
-      background-color: #151a23;
-      border: 1px solid #232a3b;
-      border-radius: 12px;
-    }
-    .status-badge-active {
-      background-color: rgba(16, 185, 129, 0.15);
-      color: #10b981;
-      border: 1px solid rgba(16, 185, 129, 0.3);
-    }
-    .status-badge-locked {
-      background-color: rgba(239, 68, 68, 0.15);
-      color: #ef4444;
-      border: 1px solid rgba(239, 68, 68, 0.3);
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Trading Risk Control & Trade Monitor</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Supabase JS CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Inter Font -->
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        slate: {
+                            850: '#111827',
+                            900: '#0f172a',
+                            950: '#020617',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbar for desktop */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #090d16;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #334155;
+        }
+        /* Mobile Safe Area Padding */
+        .pb-safe {
+            padding-bottom: env(safe-area-inset-bottom, 1rem);
+        }
+        .pt-safe {
+            padding-top: env(safe-area-inset-top, 1rem);
+        }
+        /* Pulse Animation for Status Badges */
+        @keyframes subtle-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .animate-subtle-pulse {
+            animation: subtle-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
 </head>
-<body class="min-h-screen flex flex-col justify-between">
+<body class="h-full text-slate-100 font-sans antialiased bg-slate-950 flex flex-col selection:bg-indigo-500 selection:text-white">
 
-  <!-- Секция Авторизации (Supabase Auth) -->
-  <div id="authOverlay" class="fixed inset-0 z-50 bg-[#0b0e14] flex items-center justify-center p-4">
-    <div class="card p-6 w-full max-w-sm shadow-2xl text-center space-y-6">
-      <div>
-        <div class="inline-flex p-3 bg-blue-500/10 rounded-full text-blue-400 mb-3">
-          <i class="fa-solid fa-shield-halved text-2xl"></i>
+    <!-- ==================== LOGIN OVERLAY (Supabase Auth) ==================== -->
+    <div id="loginOverlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-md px-4 pt-safe pb-safe transition-opacity duration-300">
+        <div class="w-full max-w-xs flex flex-col items-center">
+            <!-- App Icon -->
+            <div class="w-16 h-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center mb-6 shadow-lg shadow-indigo-500/10">
+                <i data-lucide="shield-check" class="w-8 h-8 text-indigo-400"></i>
+            </div>
+
+            <h2 class="text-xl font-bold text-white tracking-wide">Trading Guard</h2>
+            <p class="text-xs text-slate-400 mt-1 mb-8">Войдите, чтобы открыть панель</p>
+
+            <form id="loginForm" onsubmit="handleLogin(event)" class="w-full space-y-3">
+                <input type="email" id="loginEmail" autocomplete="username" required placeholder="Email"
+                    class="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+                <input type="password" id="loginPassword" autocomplete="current-password" required placeholder="Пароль"
+                    class="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+
+                <div id="loginError" class="text-xs text-rose-500 font-medium min-h-[1rem] text-center opacity-0 transition-opacity duration-200"></div>
+
+                <button type="submit" id="loginBtn"
+                    class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 active:scale-95 shadow-lg shadow-indigo-600/20 transition-all">
+                    Войти
+                </button>
+            </form>
         </div>
-        <h2 class="text-xl font-bold">Trading Monitor</h2>
-        <p class="text-xs text-gray-400 mt-1">Вход только для владельца</p>
-      </div>
-
-      <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-4 text-left">
-        <div>
-          <label class="block text-xs text-gray-400 mb-1">Email</label>
-          <input type="email" id="authEmail" required placeholder="your@email.com"
-            class="w-full bg-[#0d1117] border border-[#232a3b] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-        </div>
-        <div>
-          <label class="block text-xs text-gray-400 mb-1">Пароль</label>
-          <input type="password" id="authPassword" required placeholder="••••••••"
-            class="w-full bg-[#0d1117] border border-[#232a3b] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500">
-        </div>
-
-        <div id="authError" class="text-red-400 text-xs text-center hidden"></div>
-
-        <button type="submit" id="loginBtn"
-          class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg transition-colors text-sm">
-          Войти в систему
-        </button>
-      </form>
-    </div>
-  </div>
-
-  <!-- Главный Дашборд -->
-  <div id="dashboardApp" class="hidden flex-1 flex flex-col max-w-xl mx-auto w-full p-4 space-y-4">
-    
-    <!-- Хедер -->
-    <header class="flex justify-between items-center pb-2 border-b border-[#232a3b]">
-      <div>
-        <h1 class="text-lg font-bold flex items-center gap-2">
-          <i class="fa-solid fa-chart-line text-blue-400"></i> Risk Control
-        </h1>
-        <p class="text-[10px] text-gray-400">Мониторинг торговли (Read-Only)</p>
-      </div>
-      <button onclick="handleLogout()" class="text-xs text-gray-400 hover:text-red-400 px-2 py-1 rounded border border-[#232a3b]">
-        <i class="fa-solid fa-right-from-bracket"></i> Выход
-      </button>
-    </header>
-
-    <!-- Карточка Статуса Рисков -->
-    <div class="card p-4 space-y-3">
-      <div class="flex justify-between items-center">
-        <span class="text-xs text-gray-400">Статус Риск-Менеджера</span>
-        <span id="riskStatusBadge" class="text-xs px-2.5 py-1 rounded-full font-semibold status-badge-active">
-          Проверка...
-        </span>
-      </div>
-      <div class="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-[#232a3b]/50">
-        <div>
-          <span class="text-gray-400">Режим торговли:</span>
-          <p id="tradeMode" class="font-medium text-white">-</p>
-        </div>
-        <div>
-          <span class="text-gray-400">Причина блокировки:</span>
-          <p id="lockReason" class="font-medium text-amber-400 truncate">-</p>
-        </div>
-      </div>
     </div>
 
-    <!-- Финансовый Результат (P&L) -->
-    <div class="card p-4">
-      <span class="text-xs text-gray-400">Сводка P&L (Cash)</span>
-      <div class="flex items-baseline gap-2 mt-1">
-        <span id="totalCash" class="text-3xl font-extrabold text-white">$0.00</span>
-        <span id="pnlPercent" class="text-xs font-semibold text-gray-400">--</span>
-      </div>
-      <p class="text-[10px] text-gray-500 mt-2">Автоматически рассчитывается через DB Triggers & Views</p>
+    <!-- ==================== MAIN DASHBOARD LAYOUT ==================== -->
+    <div id="mainApp" class="hidden min-h-full flex flex-col pt-safe pb-safe">
+        
+        <!-- HEADER -->
+        <header class="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/60 px-4 py-3">
+            <div class="max-w-6xl mx-auto flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                        <i data-lucide="activity" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-base font-bold text-white leading-tight">Trading Guard</h1>
+                        <p class="text-xs text-slate-400 flex items-center gap-1.5">
+                            <span id="syncDot" class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            <span id="syncText">Синхронизировано</span>
+                        </p>
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2">
+                    <!-- Config Button -->
+                    <button onclick="openConfigModal()" class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 active:scale-95 transition-all" title="Настройки подключения">
+                        <i data-lucide="settings" class="w-4 h-4"></i>
+                    </button>
+                    <!-- Lock Session Button -->
+                    <button onclick="lockSession()" class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-800 active:scale-95 transition-all" title="Выйти">
+                        <i data-lucide="lock" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- DASHBOARD BODY -->
+        <main class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
+
+            <!-- RISK STATUS MAIN BANNER (STRICT READ ONLY) -->
+            <div id="statusBanner" class="p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-slate-900 border-slate-800">
+                <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <span id="bannerBadge" class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                ALLOW
+                            </span>
+                            <span id="playbackBadge" class="hidden px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
+                                <i data-lucide="gamepad-2" class="w-3.5 h-3.5"></i> PLAYBACK MODE
+                            </span>
+                        </div>
+                        <h2 id="bannerTitle" class="text-2xl font-black tracking-tight text-white pt-1">
+                            ТОРГОВЛЯ РАЗРЕШЕНА
+                        </h2>
+                        <p id="bannerDesc" class="text-xs text-slate-400">
+                            Все лимиты в норме. Контроллер рисков NinjaTrader работает в штатном режиме.
+                        </p>
+                    </div>
+
+                    <!-- Risk Info Quick Badges -->
+                    <div class="flex items-center gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-slate-800">
+                        <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 min-w-[110px]">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium">Лимит потерь</div>
+                            <div id="lossLimitVal" class="text-sm font-bold text-rose-400">-$1,000</div>
+                        </div>
+                        <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 min-w-[110px]">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium">Цель профита</div>
+                            <div id="profitLimitVal" class="text-sm font-bold text-emerald-400">+$1,000</div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- STATS SUMMARY GRID -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col">
+                    <span class="text-xs font-medium text-slate-400 mb-1">Итог (Recent P&L)</span>
+                    <span id="statPnL" class="text-xl font-bold text-slate-200">$0.00</span>
+                    <span id="statPnLSub" class="text-[10px] text-slate-500 mt-auto pt-2">За торговый день</span>
+                </div>
+                <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col">
+                    <span class="text-xs font-medium text-slate-400 mb-1">Всего сделок</span>
+                    <span id="statTotalTrades" class="text-xl font-bold text-white">0</span>
+                    <span id="statWinRate" class="text-[10px] text-slate-500 mt-auto pt-2">Win Rate: 0%</span>
+                </div>
+                <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col">
+                    <span class="text-xs font-medium text-slate-400 mb-1">Открытые позиции</span>
+                    <span id="statActiveTrades" class="text-xl font-bold text-indigo-400">0</span>
+                    <span class="text-[10px] text-slate-500 mt-auto pt-2">net_now &ne; 0</span>
+                </div>
+                <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col">
+                    <span class="text-xs font-medium text-slate-400 mb-1">Режим Защиты</span>
+                    <span class="text-xl font-bold text-emerald-400 flex items-center gap-1.5">
+                        <i data-lucide="shield-check" class="w-5 h-5"></i>
+                        <span>АКТИВЕН</span>
+                    </span>
+                    <span class="text-[10px] text-slate-400 mt-auto pt-2">Без кнопки сброса</span>
+                </div>
+            </div>
+
+            <!-- RECENT TRADES SECTION (VIEW: trade_summary) -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="list-ordered" class="w-4 h-4 text-indigo-400"></i>
+                        <h3 class="text-sm font-bold text-white uppercase tracking-wider">Сводка сделок (trade_summary)</h3>
+                    </div>
+                    <button onclick="fetchData()" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium transition-colors">
+                        <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i>
+                        <span>Обновить</span>
+                    </button>
+                </div>
+
+                <!-- Desktop Table View -->
+                <div class="hidden md:block overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-950/50 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                            <tr>
+                                <th class="py-3 px-4">Сделка / Счет</th>
+                                <th class="py-3 px-4">Инструмент</th>
+                                <th class="py-3 px-4">Открыта</th>
+                                <th class="py-3 px-4">Статус (net_now)</th>
+                                <th class="py-3 px-4 text-right">Результат (cash)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tradesTableBody" class="divide-y divide-slate-800/60 font-medium">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Mobile Cards View -->
+                <div id="tradesMobileList" class="block md:hidden divide-y divide-slate-800/60">
+                    <!-- Populated via JS -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="emptyTrades" class="hidden p-8 text-center text-slate-500 text-xs">
+                    <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-40"></i>
+                    Сделки еще не зарегистрированы в базе данных.
+                </div>
+            </div>
+
+        </main>
+
+        <!-- FOOTER -->
+        <footer class="mt-auto border-t border-slate-800/60 py-4 px-4 text-center text-[11px] text-slate-500">
+            <p>NinjaTrader 8 Risk Controller &bull; Supabase Postgres Engine &bull; Read-Only Dashboard</p>
+        </footer>
     </div>
 
-    <!-- Текущие Позиции и Аккаунты -->
-    <div class="card p-4">
-      <h3 class="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">Открытые Позиции / Счета</h3>
-      <div id="accountsList" class="space-y-2">
-        <div class="text-xs text-gray-500 text-center py-2">Загрузка данных...</div>
-      </div>
+    <!-- ==================== SUPABASE CONFIG MODAL ==================== -->
+    <div id="configModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i data-lucide="database" class="w-4 h-4 text-indigo-400"></i>
+                    Настройки Supabase
+                </h3>
+                <button onclick="closeConfigModal()" class="text-slate-400 hover:text-white p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-400">
+                Укажите параметры подключения к вашему проекту Supabase для чтения данных из <code class="text-indigo-300">risk_control</code> и <code class="text-indigo-300">trade_summary</code>.
+            </p>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Supabase Project URL</label>
+                    <input type="text" id="supabaseUrlInput" placeholder="https://xyzcompany.supabase.co" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Supabase Anon Key</label>
+                    <input type="password" id="supabaseKeyInput" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between pt-2">
+                <button onclick="useDemoData()" class="text-xs text-slate-400 hover:text-slate-200 underline">
+                    Загрузить демо-данные
+                </button>
+                <div class="flex gap-2">
+                    <button onclick="closeConfigModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700">
+                        Отмена
+                    </button>
+                    <button onclick="saveConfig()" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 shadow-lg shadow-indigo-600/20">
+                        Сохранить
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- Последняя активность -->
-    <div class="card p-4">
-      <h3 class="text-xs font-semibold text-gray-400 mb-3 uppercase tracking-wider">Последняя активность</h3>
-      <div id="recentActivity" class="space-y-2 text-xs text-gray-300">
-        <div class="text-xs text-gray-500 text-center py-2">Загрузка...</div>
-      </div>
-    </div>
+    <!-- ==================== JAVASCRIPT LOGIC ==================== -->
+    <script>
+        // System State
+        const DEFAULT_SUPABASE_URL = 'https://bdcfpihcusurmxsafpfb.supabase.co';
+        const DEFAULT_SUPABASE_KEY = 'sb_publishable_fDSDr8EZiRjnTS7l4uFzAA_TeOJeDNu';
 
-  </div>
+        let supabaseClient = null;
+        let isDemoMode = false;
+        let pollInterval = null;
 
-  <footer class="text-center py-3 text-[10px] text-gray-600">
-    Защищенный монитор &bull; Подключен к Supabase PostgreSQL
-  </footer>
+        const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-  <script>
-    // Инициализация Supabase
-    const SUPABASE_URL = 'https://bdcfpihcusurmxsafpfb.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_fDSDr8EZiRjnTS7l4uFzAA_TeOJeDNu';
-    // Переменная называется sb: имя supabase занято самой библиотекой
-    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        // Торговый день идёт с 17:00 по Чикаго
+        function tradingDay(date) {
+            const s = date.toLocaleString('sv-SE', { timeZone: 'America/Chicago' });
+            const d = new Date(s.replace(' ', 'T') + 'Z');
+            d.setUTCHours(d.getUTCHours() + 7);
+            return d.toISOString().slice(0, 10);
+        }
 
-    const $ = id => document.getElementById(id);
-    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    const money = n => (n < 0 ? '-$' : '$') + Math.abs(n).toFixed(2);
-    let refreshTimer = null;
+        // Initialize Lucide Icons
+        lucide.createIcons();
 
-    // Торговый день идёт с 17:00 по Чикаго (сдвиг на +7 часов даёт нужную дату)
-    function tradingDay(date) {
-      const s = date.toLocaleString('sv-SE', { timeZone: 'America/Chicago' });
-      const d = new Date(s.replace(' ', 'T') + 'Z');
-      d.setUTCHours(d.getUTCHours() + 7);
-      return d.toISOString().slice(0, 10);
-    }
+        // Window Load Handler
+        window.addEventListener('load', async () => {
+            initSupabaseFromStorage();
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) showApp(); else showLogin();
+        });
 
-    // Проверка существующей сессии при загрузке
-    document.addEventListener('DOMContentLoaded', async () => {
-      const { data: { session } } = await sb.auth.getSession();
-      if (session) {
-        showDashboard();
-      }
-    });
+        function makeClient(url, key) {
+            supabaseClient = supabase.createClient(url, key);
+            supabaseClient.auth.onAuthStateChange((event, session) => {
+                if (event === 'SIGNED_OUT' || !session) showLogin();
+            });
+        }
 
-    // Авторизация
-    async function handleLogin(e) {
-      e.preventDefault();
-      const email = $('authEmail').value.trim();
-      const password = $('authPassword').value;
-      const errorEl = $('authError');
-      const btn = $('loginBtn');
+        // ---------- Вход по email и паролю (Supabase Auth) ----------
+        function showLoginError(text) {
+            const el = document.getElementById('loginError');
+            el.innerText = text || '';
+            el.classList.toggle('opacity-0', !text);
+        }
 
-      errorEl.classList.add('hidden');
-      btn.disabled = true;
-      btn.innerText = 'Вход...';
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const btn = document.getElementById('loginBtn');
 
-      try {
-        const { error } = await sb.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        showDashboard();
-      } catch (err) {
-        errorEl.innerText = (err && err.message) ? err.message : 'Ошибка входа';
-        errorEl.classList.remove('hidden');
-      }
-      btn.disabled = false;
-      btn.innerText = 'Войти в систему';
-    }
+            showLoginError('');
+            btn.disabled = true;
+            btn.innerText = 'Вход...';
 
-    // Выход
-    async function handleLogout() {
-      if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null; }
-      await sb.auth.signOut();
-      $('dashboardApp').classList.add('hidden');
-      $('authOverlay').classList.remove('hidden');
-    }
+            try {
+                const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (error) throw error;
+                document.getElementById('loginPassword').value = '';
+                showApp();
+            } catch (err) {
+                const m = (err && err.message) ? err.message : 'Ошибка входа';
+                if (/invalid login credentials/i.test(m)) showLoginError('Неверный email или пароль');
+                else if (/email not confirmed/i.test(m)) showLoginError('Email не подтверждён');
+                else showLoginError(m);
+            }
+            btn.disabled = false;
+            btn.innerText = 'Войти';
+        }
 
-    // Показ дашборда и автообновление
-    function showDashboard() {
-      $('authOverlay').classList.add('hidden');
-      $('dashboardApp').classList.remove('hidden');
+        function showApp() {
+            document.getElementById('loginOverlay').classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('mainApp').classList.remove('hidden');
+                fetchData();
+                startPolling();
+            }, 300);
+        }
 
-      loadDashboardData();
+        function showLogin() {
+            stopPolling();
+            document.getElementById('mainApp').classList.add('hidden');
+            const ov = document.getElementById('loginOverlay');
+            ov.classList.remove('hidden');
+            requestAnimationFrame(() => ov.classList.remove('opacity-0', 'pointer-events-none'));
+        }
 
-      // Авто-обновление каждые 5 секунд
-      if (refreshTimer) clearInterval(refreshTimer);
-      refreshTimer = setInterval(loadDashboardData, 5000);
-    }
+        async function lockSession() {
+            await supabaseClient.auth.signOut();
+            showLogin();
+        }
 
-    async function loadDashboardData() {
-      try {
-        const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
-        const [riskRes, tradesRes] = await Promise.all([
-          sb.from('risk_control').select('*').eq('id', 1).single(),
-          sb.from('trades')
-            .select('id,created_at,account_name,instrument,side,qty,price,point_value,commission,net_after,group_no')
-            .gte('created_at', since).order('id', { ascending: false }).limit(1000)
-        ]);
-        if (riskRes.error) throw riskRes.error;
-        if (tradesRes.error) throw tradesRes.error;
+        // ---------- Supabase Setup ----------
+        function initSupabaseFromStorage() {
+            const url = localStorage.getItem('supabase_url') || DEFAULT_SUPABASE_URL;
+            const key = localStorage.getItem('supabase_key') || DEFAULT_SUPABASE_KEY;
 
-        const risk = riskRes.data;
-        const rows = tradesRes.data.slice().reverse();
-        const pb = !!risk.playback_mode && !!risk.playback_mode_at &&
-                   (Date.now() - new Date(risk.playback_mode_at).getTime()) < 180000;
+            document.getElementById('supabaseUrlInput').value = url;
+            document.getElementById('supabaseKeyInput').value = key;
+            try {
+                makeClient(url, key);
+                isDemoMode = false;
+            } catch (e) {
+                console.error('Supabase init error:', e);
+                isDemoMode = true;
+            }
+        }
 
-        renderStatus(risk, pb);
-        renderTrades(rows, pb, risk);
-      } catch (err) {
-        $('recentActivity').innerHTML = '<div class="text-red-400">Ошибка загрузки: ' + esc(err.message || err) + '</div>';
-      }
-    }
+        function openConfigModal() {
+            document.getElementById('configModal').classList.remove('hidden');
+        }
 
-    function renderStatus(risk, pb) {
-      const badge = $('riskStatusBadge');
-      if (risk.full_stop) {
-        badge.className = 'text-xs px-2.5 py-1 rounded-full font-semibold status-badge-locked';
-        badge.innerText = 'ЗАБЛОКИРОВАНО';
-      } else {
-        badge.className = 'text-xs px-2.5 py-1 rounded-full font-semibold status-badge-active';
-        badge.innerText = 'Торговля разрешена';
-      }
-      $('tradeMode').innerText = pb ? 'PLAYBACK (тест)' : 'Настоящие счета';
-      $('lockReason').innerText = !risk.full_stop ? '-' :
-        (risk.limit_type === 'profit' ? 'Достигнута цель по прибыли' : 'Достигнут лимит убытка');
-    }
+        function closeConfigModal() {
+            document.getElementById('configModal').classList.add('hidden');
+        }
 
-    function renderTrades(rows, pb, risk) {
-      const today = tradingDay(new Date());
-      const pairs = {};
-      for (const r of rows) {
-        if (!r.instrument) continue;
-        if (tradingDay(new Date(r.created_at)) !== today) continue;
-        const isPb = r.account_name.toLowerCase().startsWith('playback');
-        if (isPb !== pb) continue;
-        const key = r.account_name + '|' + r.instrument;
-        const p = pairs[key] || (pairs[key] = { acc: r.account_name, ins: r.instrument, cash: 0, flatCash: 0, net: 0 });
-        p.cash += -r.side * r.qty * Number(r.price) * Number(r.point_value) - Number(r.commission || 0);
-        p.net = r.net_after;
-        if (r.net_after === 0) p.flatCash = p.cash;
-      }
+        async function saveConfig() {
+            const url = document.getElementById('supabaseUrlInput').value.trim();
+            const key = document.getElementById('supabaseKeyInput').value.trim();
 
-      const list = Object.values(pairs);
-      const total = list.reduce((s, p) => s + p.flatCash, 0);
+            if (url && key) {
+                localStorage.setItem('supabase_url', url);
+                localStorage.setItem('supabase_key', key);
+                makeClient(url, key);
+                isDemoMode = false;
+                closeConfigModal();
+                const { data: { session } } = await supabaseClient.auth.getSession();
+                if (session) fetchData(); else showLogin();
+            } else {
+                alert('Пожалуйста, введите корректные URL и Key');
+            }
+        }
 
-      const el = $('totalCash');
-      el.innerText = money(total);
-      el.className = 'text-3xl font-extrabold ' + (total < 0 ? 'text-red-400' : total > 0 ? 'text-emerald-400' : 'text-white');
-      $('pnlPercent').innerText = 'лимиты: ' + money(Number(risk.loss_limit)) + ' / ' + money(Number(risk.profit_limit));
+        function useDemoData() {
+            isDemoMode = true;
+            closeConfigModal();
+            fetchData();
+        }
 
-      const open = list.filter(p => p.net !== 0);
-      $('accountsList').innerHTML = open.length
-        ? open.map(p => '<div class="flex justify-between text-xs"><span>' + esc(p.acc) + ' &bull; ' + esc(p.ins) +
-            '</span><span class="font-semibold ' + (p.net > 0 ? 'text-emerald-400' : 'text-red-400') + '">' +
-            (p.net > 0 ? 'LONG ' : 'SHORT ') + Math.abs(p.net) + '</span></div>').join('')
-        : '<div class="text-xs text-gray-500 text-center py-2">Нет открытых позиций</div>';
+        // Data Fetching Logic
+        async function fetchData() {
+            updateSyncStatus('syncing');
 
-      const recent = rows.filter(r => r.instrument).slice(-10).reverse();
-      $('recentActivity').innerHTML = recent.length
-        ? recent.map(r => {
-            const t = new Date(r.created_at).toLocaleTimeString('ru-RU', { timeZone: 'America/Vancouver', hour12: false });
-            return '<div class="flex justify-between"><span class="text-gray-500">' + t + '</span><span>' + esc(r.account_name) +
-              '</span><span class="' + (r.side > 0 ? 'text-emerald-400' : 'text-red-400') + '">' + (r.side > 0 ? 'BUY ' : 'SELL ') + r.qty +
-              '</span><span>' + Number(r.price) + '</span></div>';
-          }).join('')
-        : '<div class="text-xs text-gray-500 text-center py-2">Сделок пока нет</div>';
-    }
-  </script>
+            if (isDemoMode || !supabaseClient) {
+                renderDemoData();
+                updateSyncStatus('demo');
+                return;
+            }
+
+            try {
+                // 1. Fetch Risk Control Status (id = 1)
+                const { data: riskData, error: riskErr } = await supabaseClient
+                    .from('risk_control')
+                    .select('*')
+                    .eq('id', 1)
+                    .single();
+
+                if (riskErr && riskErr.code !== 'PGRST116') {
+                    console.error('Error reading risk_control:', riskErr);
+                    if (riskErr.code === 'PGRST301' || /jwt/i.test(riskErr.message || '')) { showLogin(); return; }
+                }
+
+                // 2. Fetch Trade Summary (from public.trade_summary view) за последние 36 часов для фильтрации по торговому дню
+                const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
+                const { data: tradesData, error: tradesErr } = await supabaseClient
+                    .from('trade_summary')
+                    .select('*')
+                    .gte('opened_at', since)
+                    .order('opened_at', { ascending: false })
+                    .limit(1000);
+
+                if (tradesErr) {
+                    console.error('Error reading trade_summary view:', tradesErr);
+                }
+
+                const pb = !!riskData && !!riskData.playback_mode && !!riskData.playback_mode_at &&
+                           (Date.now() - new Date(riskData.playback_mode_at).getTime()) < 180000;
+                
+                const today = tradingDay(new Date());
+                const filteredTrades = (tradesData || []).filter(t => {
+                    if (!t.opened_at) return false;
+                    if (tradingDay(new Date(t.opened_at)) !== today) return false;
+                    const isPb = String(t.account_name || '').toLowerCase().startsWith('playback');
+                    return isPb === pb;
+                });
+
+                renderRiskStatus(riskData ? Object.assign({}, riskData, { playback_mode: pb }) : riskData);
+                renderTrades(filteredTrades);
+                updateSyncStatus(riskErr && riskErr.code !== 'PGRST116' || tradesErr ? 'error' : 'success');
+
+            } catch (err) {
+                console.error('Unexpected error fetching data:', err);
+                updateSyncStatus('error');
+            }
+        }
+
+        function startPolling() {
+            if (!pollInterval) {
+                pollInterval = setInterval(fetchData, 5000);
+            }
+        }
+
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+
+        function updateSyncStatus(state) {
+            const dot = document.getElementById('syncDot');
+            const text = document.getElementById('syncText');
+
+            if (state === 'syncing') {
+                dot.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping";
+                text.innerText = "Обновление...";
+            } else if (state === 'success') {
+                dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500";
+                text.innerText = "Синхронизировано";
+            } else if (state === 'demo') {
+                dot.className = "w-1.5 h-1.5 rounded-full bg-indigo-400";
+                text.innerText = "Демо режим";
+            } else {
+                dot.className = "w-1.5 h-1.5 rounded-full bg-rose-500";
+                text.innerText = "Ошибка сети";
+            }
+        }
+
+        // Render Risk Status UI
+        function renderRiskStatus(risk) {
+            const banner = document.getElementById('statusBanner');
+            const badge = document.getElementById('bannerBadge');
+            const title = document.getElementById('bannerTitle');
+            const desc = document.getElementById('bannerDesc');
+            const playbackBadge = document.getElementById('playbackBadge');
+
+            if (!risk) {
+                risk = { full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000, playback_mode: false };
+            }
+
+            document.getElementById('lossLimitVal').innerText = `$${Number(risk.loss_limit || -1000).toLocaleString('en-US')}`;
+            document.getElementById('profitLimitVal').innerText = `+$${Number(risk.profit_limit || 1000).toLocaleString('en-US')}`;
+
+            if (risk.playback_mode) {
+                playbackBadge.classList.remove('hidden');
+            } else {
+                playbackBadge.classList.add('hidden');
+            }
+
+            if (!risk.full_stop) {
+                banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-emerald-950/30 border-emerald-500/30 shadow-lg shadow-emerald-950/20";
+                badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                badge.innerText = "ALLOW";
+                title.innerText = "ТОРГОВЛЯ РАЗРЕШЕНА";
+                title.className = "text-2xl font-black tracking-tight text-emerald-400 pt-1";
+                desc.innerText = "Все лимиты рисков в норме. Контроллер NinjaTrader готов принимать ордера.";
+            } else {
+                if (risk.limit_type === 'profit') {
+                    banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-indigo-950/40 border-indigo-500/40 shadow-lg shadow-indigo-950/30";
+                    badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30";
+                    badge.innerText = "MAX PROFIT TARGET";
+                    title.innerText = "ЦЕЛЬ ПО ПРИБЫЛИ ДОСТИГНУТА";
+                    title.className = "text-2xl font-black tracking-tight text-indigo-300 pt-1";
+                    desc.innerText = "Отличная работа! Торговый день завершен с фиксацией профита. Блокировка активна до следующего сеанса.";
+                } else {
+                    banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-rose-950/40 border-rose-500/40 shadow-lg shadow-rose-950/30";
+                    badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-subtle-pulse";
+                    badge.innerText = "MAX LOSS STOP";
+                    title.innerText = "ДОСТИГНУТ ЛИМИТ УБЫТКА";
+                    title.className = "text-2xl font-black tracking-tight text-rose-400 pt-1";
+                    desc.innerText = "Сработало ограничение потерь. Торговля заблокирована контроллером для защиты депозита.";
+                }
+            }
+        }
+
+        // Render Trade Summary UI
+        function renderTrades(trades) {
+            const tbody = document.getElementById('tradesTableBody');
+            const mobileList = document.getElementById('tradesMobileList');
+            const emptyState = document.getElementById('emptyTrades');
+
+            tbody.innerHTML = '';
+            mobileList.innerHTML = '';
+
+            if (!trades || trades.length === 0) {
+                emptyState.classList.remove('hidden');
+                updateStats(0, 0, 0, 0);
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            let totalPnL = 0;
+            let closedTradesCount = 0;
+            let winningTradesCount = 0;
+            let activeTradesCount = 0;
+
+            trades.forEach((t) => {
+                const cash = Number(t.cash || 0);
+                const isClosed = Number(t.net_now) === 0;
+
+                if (isClosed) {
+                    totalPnL += cash;
+                    closedTradesCount++;
+                    if (cash > 0) winningTradesCount++;
+                } else {
+                    activeTradesCount++;
+                }
+
+                const cashClass = cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400');
+                const cashFormatted = (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
+                const openTimeFormatted = t.opened_at ? new Date(t.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+
+                // Desktop Row
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/30 transition-colors";
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-semibold text-white">
+                        #${t.trade_no || '—'}
+                        <span class="block text-[10px] text-slate-500 font-normal">${esc(t.account_name || 'Главный счет')}</span>
+                    </td>
+                    <td class="py-3 px-4 text-slate-300">
+                        <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700/60 font-mono text-[11px]">${esc(t.instrument || 'NQ')}</span>
+                    </td>
+                    <td class="py-3 px-4 text-slate-400">${openTimeFormatted}</td>
+                    <td class="py-3 px-4">
+                        ${isClosed ? 
+                            '<span class="inline-flex items-center gap-1 text-[11px] text-slate-400"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-slate-500"></i> Закрыта</span>' : 
+                            '<span class="inline-flex items-center gap-1 text-[11px] text-indigo-400 font-bold"><i data-lucide="clock" class="w-3.5 h-3.5 text-indigo-400 animate-spin"></i> Открыта (' + t.net_now + ')</span>'
+                        }
+                    </td>
+                    <td class="py-3 px-4 text-right font-bold font-mono ${cashClass}">${cashFormatted}</td>
+                `;
+                tbody.appendChild(tr);
+
+                // Mobile Card Item
+                const card = document.createElement('div');
+                card.className = "p-4 flex items-center justify-between";
+                card.innerHTML = `
+                    <div class="space-y-1">
+                        <div class="flex items-center gap-2">
+                            <span class="font-bold text-white text-sm">#${t.trade_no || '—'}</span>
+                            <span class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono text-slate-300">${esc(t.instrument || 'NQ')}</span>
+                        </div>
+                        <div class="text-[11px] text-slate-400 flex items-center gap-2">
+                            <span>${esc(t.account_name || 'Счет')}</span> &bull; <span>${openTimeFormatted}</span>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-mono font-bold text-sm ${cashClass}">${cashFormatted}</div>
+                        <div class="text-[10px] text-slate-500">
+                            ${isClosed ? 'ЗАКРЫТА' : '<span class="text-indigo-400 font-semibold">ОТКРЫТА</span>'}
+                        </div>
+                    </div>
+                `;
+                mobileList.appendChild(card);
+            });
+
+            lucide.createIcons();
+
+            const winRate = closedTradesCount > 0 ? Math.round((winningTradesCount / closedTradesCount) * 100) : 0;
+            updateStats(totalPnL, trades.length, winRate, activeTradesCount);
+        }
+
+        function updateStats(pnl, total, winRate, active) {
+            const pnlEl = document.getElementById('statPnL');
+            pnlEl.innerText = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+            pnlEl.className = `text-xl font-bold ${pnl > 0 ? 'text-emerald-400' : (pnl < 0 ? 'text-rose-400' : 'text-slate-200')}`;
+
+            document.getElementById('statTotalTrades').innerText = total;
+            document.getElementById('statWinRate').innerText = `Win Rate: ${winRate}%`;
+            document.getElementById('statActiveTrades').innerText = active;
+        }
+
+        // Demo Data Fallback
+        function renderDemoData() {
+            renderRiskStatus({
+                full_stop: false,
+                limit_type: '',
+                loss_limit: -1000,
+                profit_limit: 1000,
+                playback_mode: true
+            });
+
+            const demoTrades = [
+                { trade_no: 104, account_name: 'Sim101', instrument: 'NQ 03-26', opened_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(), net_now: 0, cash: 320.50 },
+                { trade_no: 103, account_name: 'Sim101', instrument: 'NQ 03-26', opened_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(), net_now: 0, cash: -150.00 },
+                { trade_no: 102, account_name: 'Sim101', instrument: 'ES 03-26', opened_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(), net_now: 0, cash: 210.00 },
+                { trade_no: 101, account_name: 'Sim101', instrument: 'NQ 03-26', opened_at: new Date(Date.now() - 1000 * 60 * 200).toISOString(), net_now: 0, cash: 85.25 }
+            ];
+
+            renderTrades(demoTrades);
+        }
+    </script>
 </body>
 </html>
