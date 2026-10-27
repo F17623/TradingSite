@@ -1,0 +1,31 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.trades (
+  id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  account_name text,
+  realized_pnl numeric,
+  message text,
+  instrument text,
+  side smallint,
+  qty integer,
+  price numeric,
+  point_value numeric,
+  commission numeric DEFAULT 0,
+  net_after integer,
+  is_open boolean,
+  trade_no bigint,
+  group_no bigint,
+  CONSTRAINT trades_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.risk_control (
+  id integer NOT NULL,
+  full_stop boolean DEFAULT false,
+  limit_type text DEFAULT ''::text,
+  loss_limit numeric NOT NULL DEFAULT '-1000'::integer,
+  profit_limit numeric NOT NULL DEFAULT 1000,
+  playback_mode boolean NOT NULL DEFAULT false,
+  playback_mode_at timestamp with time zone,
+  CONSTRAINT risk_control_pkey PRIMARY KEY (id)
+);

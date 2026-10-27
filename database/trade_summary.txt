@@ -1,0 +1,35 @@
+create view public.trade_summary
+with
+  (security_invoker = on) as
+select
+  trade_no,
+  group_no,
+  account_name,
+  instrument,
+  min(created_at) as opened_at,
+  max(created_at) as last_at,
+  max(net_after) filter (
+    where
+      id = (
+        (
+          select
+            max(t2.id) as max
+          from
+            trades t2
+          where
+            t2.trade_no = t.trade_no
+        )
+      )
+  ) as net_now,
+  sum(
+    ((- side) * qty)::numeric * price * point_value - COALESCE(commission, 0::numeric)
+  ) as cash
+from
+  trades t
+where
+  trade_no is not null
+group by
+  trade_no,
+  group_no,
+  account_name,
+  instrument;
