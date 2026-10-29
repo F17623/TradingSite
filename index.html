@@ -130,19 +130,26 @@
                 </div>
             </div>
 
-            <!-- ANTI-TILT & ASIA CONTROL PANEL -->
+            <!-- ANTI-TILT & ASIA CONTROL PANEL WITH LIVE COUNTDOWN -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row items-center justify-between gap-4">
-                <div class="flex items-center space-x-2 w-full lg:w-auto">
-                    <i data-lucide="shield-alert" class="w-5 h-5 text-indigo-400"></i>
+                <div class="flex items-center space-x-3 w-full lg:w-auto">
+                    <div class="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                        <i data-lucide="shield-alert" class="w-5 h-5"></i>
+                    </div>
                     <div>
-                        <h3 class="text-sm font-bold text-white">Защита от тильта и сессий</h3>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-sm font-bold text-white">Защита от тильта и сессий</h3>
+                            <span id="tiltTimerBadge" class="hidden px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                00:00:00
+                            </span>
+                        </div>
                         <p id="panelSubText" class="text-[11px] text-slate-400">Управление режимами в risk_control</p>
                     </div>
                 </div>
 
                 <div id="controlButtonsContainer" class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto transition-opacity">
                     <!-- Asia Session Button -->
-                    <button id="btnAsia" onclick="confirmAction('asia', 'ВНИМАНИЕ: Записать блок Азиатской сессии?')" class="px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/20 transition-all flex items-center gap-1.5">
+                    <button id="btnAsia" onclick="confirmAction('asia', 'ВНИМАНИЕ: Записать блок Азиатской сессии (до 00:00 CT)?')" class="px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/20 transition-all flex items-center gap-1.5">
                         <i data-lucide="moon" class="w-3.5 h-3.5"></i> Блок Азии
                     </button>
 
@@ -283,8 +290,9 @@
         let isDemoMode = false;
         let pendingActionType = null;
         let countdownTimer = null;
+        let tiltPanelTimer = null;
         let pollInterval = null;
-        let currentLimitType = ''; // Хранит текущий статус limit_type из БД
+        let currentLimitType = ''; 
 
         const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -327,7 +335,6 @@
         }
 
         function confirmAction(type, message) {
-            // Защита: если сработал системный лимит loss или profit, кнопки заблокированы
             if (currentLimitType === 'loss' || currentLimitType === 'profit') {
                 alert(`⚠️ Управление заблокировано: сработал системный лимит (${currentLimitType.toUpperCase()}). Изменение режимов недоступно до конца сессии.`);
                 return;
@@ -361,6 +368,7 @@
 
                 if (limitType === 'manual_1h') {
                     unlockAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+                    localStorage.setItem('sim_lock_time', now.toISOString());
                 } else if (limitType === 'asia') {
                     const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
                     const ctDate = new Date(ctStr);
@@ -368,7 +376,6 @@
                     unlockAt = ctDate.toISOString();
                 }
 
-                // Записываем limit_type и unlock_at (full_stop не трогаем, им управляет база)
                 const { error } = await supabaseClient
                     .from('risk_control')
                     .update({ 
@@ -514,7 +521,6 @@
         function renderRiskStatus(risk) {
             if (!risk) risk = { full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 };
 
-            // Сохраняем текущий тип лимита для блокировки кнопок
             currentLimitType = risk.limit_type || '';
 
             document.getElementById('lossLimitVal').innerText = `$${Number(risk.loss_limit || -1000).toLocaleString('en-US')}`;
@@ -529,19 +535,65 @@
             const statTitle = document.getElementById('statProtectionTitle');
             const statSub = document.getElementById('statProtectionSub');
 
-            // Визуальное блокирование кнопок при системном лимите (loss / profit)
             const buttonsContainer = document.getElementById('controlButtonsContainer');
             const subText = document.getElementById('panelSubText');
+            const tiltBadge = document.getElementById('tiltTimerBadge');
+
+            if (tiltPanelTimer) {
+                clearInterval(tiltPanelTimer);
+                tiltPanelTimer = null;
+            }
+
             if (currentLimitType === 'loss' || currentLimitType === 'profit') {
                 buttonsContainer.style.opacity = '0.4';
                 buttonsContainer.style.pointerEvents = 'none';
                 subText.innerText = `🔒 Заблокировано системой (${currentLimitType.toUpperCase()} LIMIT)`;
                 subText.className = "text-[11px] text-rose-400 font-bold";
+                tiltBadge.classList.add('hidden');
             } else {
                 buttonsContainer.style.opacity = '1';
                 buttonsContainer.style.pointerEvents = 'auto';
-                subText.innerText = "Управление режимами в risk_control";
-                subText.className = "text-[11px] text-slate-400";
+                
+                if (currentLimitType === 'manual_1h' || currentLimitType === 'asia') {
+                    tiltBadge.classList.remove('hidden');
+                    
+                    tiltPanelTimer = setInterval(() => {
+                        const now = new Date();
+                        let target = null;
+                        
+                        if (risk.unlock_at) {
+                            target = new Date(risk.unlock_at);
+                        } else if (currentLimitType === 'manual_1h') {
+                            let lockTimeStr = localStorage.getItem('sim_lock_time') || new Date().toISOString();
+                            target = new Date(new Date(lockTimeStr).getTime() + 60 * 60 * 1000);
+                        } else if (currentLimitType === 'asia') {
+                            const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
+                            target = new Date(ctStr);
+                            target.setHours(24, 0, 0, 0);
+                        }
+
+                        if (target) {
+                            const diffMs = target - now;
+                            if (diffMs <= 0) {
+                                tiltBadge.innerText = "00:00:00";
+                                subText.innerText = "Блокировка завершена";
+                                subText.className = "text-[11px] text-emerald-400 font-bold";
+                                clearInterval(tiltPanelTimer);
+                            } else {
+                                const h = String(Math.floor((diffMs / (1000 * 60 * 60)) % 24)).padStart(2, '0');
+                                const m = String(Math.floor((diffMs / (1000 * 60)) % 60)).padStart(2, '0');
+                                const s = String(Math.floor((diffMs / 1000) % 60)).padStart(2, '0');
+                                tiltBadge.innerText = `${h}:${m}:${s}`;
+                                subText.innerText = `Блокировка активна. Разблокировка через ${m}м ${s}с`;
+                                subText.className = "text-[11px] text-amber-400 font-semibold";
+                            }
+                        }
+                    }, 1000);
+                } else {
+                    tiltBadge.classList.add('hidden');
+                    subText.innerText = "Управление режимами в risk_control";
+                    subText.className = "text-[11px] text-slate-400";
+                }
             }
 
             if (countdownTimer) {
@@ -549,7 +601,7 @@
                 countdownTimer = null;
             }
 
-            if (!risk.full_stop) {
+            if (!risk.full_stop && !currentLimitType) {
                 banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-emerald-950/35 border-emerald-500/30 shadow-lg shadow-emerald-950/20";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
                 badge.innerText = "ALLOW";
