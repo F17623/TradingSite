@@ -574,12 +574,13 @@ function renderRiskStatus(risk) {
                         target = new Date(ctStr);
                         target.setHours(24, 0, 0, 0);
                     } else {
-                        // Для LOSS LIMIT, PROFIT LIMIT или обычного SESSION STOP считаем до конца сессии (16:00/17:00 CT)
+                        // Привязываем таймер ровно к закрытию сессии (16:00 CT), как и верхний счетчик
                         const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
                         target = new Date(ctStr);
                         target.setHours(16, 0, 0, 0);
                         if (new Date(ctStr) > target) target.setDate(target.getDate() + 1);
                     }
+					
 
                     if (target) {
                         const diffMs = target - now;
