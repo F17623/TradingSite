@@ -352,7 +352,7 @@
             closeConfirmModal();
             await updateRiskStateInDB(true, type);
         }
-async function _updateRiskStateInDB(fullStop, limitType) {
+async function updateRiskStateInDB(limitType) {
     updateSyncStatus('syncing');
     if (isDemoMode || !supabaseClient) {
         updateSyncStatus('demo');
@@ -360,57 +360,39 @@ async function _updateRiskStateInDB(fullStop, limitType) {
     }
 
     try {
-        // Пишем в тестовую таблицу, чтобы проверить связь и отсутствие триггеров
+        let unlockAt = null;
+        const now = new Date();
+
+        // Расчет времени разблокировки
+        if (limitType === 'manual_1h') {
+            // +1 час от текущего момента
+            unlockAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+        } else if (limitType === 'asia') {
+            // До полуночи по Чикаго (00:00 CT)
+            const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
+            const ctDate = new Date(ctStr);
+            ctDate.setHours(24, 0, 0, 0);
+            unlockAt = ctDate.toISOString();
+        }
+
+        // ОБНОВЛЯЕМ ТОЛЬКО limit_type И unlock_at (full_stop не трогаем!)
         const { error } = await supabaseClient
-            .from('test_buttons')
+            .from('risk_control')
             .update({ 
-                status_text: `Режим: ${limitType || 'allow'} (stop: ${fullStop})`,
-                updated_at: new Date().toISOString()
+                limit_type: limitType,
+                unlock_at: unlockAt
             })
             .eq('id', 1);
 
         if (error) throw error;
         
-        console.Hog ? '' : console.log("Успешно записано в test_buttons!");
+        await fetchData(); // Подтягиваем обновленные данные
         updateSyncStatus('success');
     } catch (err) {
-        console.error('Ошибка записи в тестовую таблицу:', err);
+        console.error('Ошибка записи в risk_control:', err);
         updateSyncStatus('error');
-        alert('Ошибка записи: ' + err.message);
     }
 }
-        async function updateRiskStateInDB(fullStop, limitType) {
-            updateSyncStatus('syncing');
-            if (isDemoMode || !supabaseClient) {
-                // Демо-режим симуляция
-                localStorage.setItem('sim_full_stop', fullStop);
-                localStorage.setItem('sim_limit_type', limitType);
-                localStorage.setItem('sim_lock_time', new Date().toISOString());
-                renderRiskStatus({ full_stop: fullStop, limit_type: limitType, loss_limit: -1000, profit_limit: 1000 });
-                updateSyncStatus('demo');
-                return;
-            }
-
-            try {
-                const { error } = await supabaseClient
-                    .from('risk_control')
-                    .update({ 
-                        full_stop: fullStop, 
-                        limit_type: limitType 
-                    })
-                    .eq('id', 1);
-
-                if (error) throw error;
-                
-                // Сразу запрашиваем актуальные данные после записи
-                await fetchData();
-                updateSyncStatus('success');
-            } catch (err) {
-                console.error('Ошибка записи в Supabase:', err);
-                updateSyncStatus('error');
-                alert('Ошибка записи в БД: ' + err.message);
-            }
-        }
 
         function makeClient(url, key) {
             supabaseClient = supabase.createClient(url, key);
