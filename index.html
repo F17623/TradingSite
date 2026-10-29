@@ -130,35 +130,25 @@
                 </div>
             </div>
 
-            <!-- ANTI-TILT & ASIA CONTROL PANEL (WRITES TO SUPABASE) -->
+            <!-- ANTI-TILT & ASIA CONTROL PANEL -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row items-center justify-between gap-4">
                 <div class="flex items-center space-x-2 w-full lg:w-auto">
                     <i data-lucide="shield-alert" class="w-5 h-5 text-indigo-400"></i>
                     <div>
-                        <h3 class="text-sm font-bold text-white">Защита от тильта и сессий (Запись в БД)</h3>
-                        <p class="text-[11px] text-slate-400">Управление состоянием risk_control в Supabase</p>
+                        <h3 class="text-sm font-bold text-white">Защита от тильта и сессий</h3>
+                        <p id="panelSubText" class="text-[11px] text-slate-400">Управление режимами в risk_control</p>
                     </div>
                 </div>
 
-                <div class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                <div id="controlButtonsContainer" class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto transition-opacity">
                     <!-- Asia Session Button -->
-                    <button onclick="confirmAction('asia', 'ВНИМАНИЕ: Записать в БД блок Азиатской сессии?')" class="px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/20 transition-all flex items-center gap-1.5">
+                    <button id="btnAsia" onclick="confirmAction('asia', 'ВНИМАНИЕ: Записать блок Азиатской сессии?')" class="px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/20 transition-all flex items-center gap-1.5">
                         <i data-lucide="moon" class="w-3.5 h-3.5"></i> Блок Азии
                     </button>
 
                     <!-- 1 Hour Pause -->
-                    <button onclick="confirmAction('manual_1h', 'Записать в БД паузу на 1 час?')" class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-all flex items-center gap-1.5">
+                    <button id="btnPause" onclick="confirmAction('manual_1h', 'Записать паузу на 1 час?')" class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-all flex items-center gap-1.5">
                         <i data-lucide="timer" class="w-3.5 h-3.5"></i> Пауза 1 час
-                    </button>
-
-                    <!-- Stop till end of day -->
-                    <button onclick="confirmAction('manual_session', 'ВНИМАНИЕ: Записать в БД стоп до конца сессии?')" class="px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold hover:bg-rose-500/20 transition-all flex items-center gap-1.5">
-                        <i data-lucide="stop-circle" class="w-3.5 h-3.5"></i> Стоп до конца дня
-                    </button>
-
-                    <!-- Reset Button -->
-                    <button onclick="updateRiskStateInDB(false, '')" class="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition-all flex items-center gap-1.5" title="Сбросить состояние в БД">
-                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-slate-400"></i> Сброс (БД)
                     </button>
                 </div>
             </div>
@@ -294,6 +284,7 @@
         let pendingActionType = null;
         let countdownTimer = null;
         let pollInterval = null;
+        let currentLimitType = ''; // Хранит текущий статус limit_type из БД
 
         const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -335,8 +326,12 @@
             }, 1000);
         }
 
-        // --- SUPABASE DATA WRITING & POLLING ---
         function confirmAction(type, message) {
+            // Защита: если сработал системный лимит loss или profit, кнопки заблокированы
+            if (currentLimitType === 'loss' || currentLimitType === 'profit') {
+                alert(`⚠️ Управление заблокировано: сработал системный лимит (${currentLimitType.toUpperCase()}). Изменение режимов недоступно до конца сессии.`);
+                return;
+            }
             pendingActionType = type;
             document.getElementById('confirmText').innerText = message;
             document.getElementById('confirmModal').classList.remove('hidden');
@@ -350,49 +345,48 @@
         async function executeConfirmedAction() {
             const type = pendingActionType;
             closeConfirmModal();
-            await updateRiskStateInDB(true, type);
-        }
-async function updateRiskStateInDB(limitType) {
-    updateSyncStatus('syncing');
-    if (isDemoMode || !supabaseClient) {
-        updateSyncStatus('demo');
-        return;
-    }
-
-    try {
-        let unlockAt = null;
-        const now = new Date();
-
-        // Расчет времени разблокировки
-        if (limitType === 'manual_1h') {
-            // +1 час от текущего момента
-            unlockAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
-        } else if (limitType === 'asia') {
-            // До полуночи по Чикаго (00:00 CT)
-            const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
-            const ctDate = new Date(ctStr);
-            ctDate.setHours(24, 0, 0, 0);
-            unlockAt = ctDate.toISOString();
+            await updateRiskStateInDB(type);
         }
 
-        // ОБНОВЛЯЕМ ТОЛЬКО limit_type И unlock_at (full_stop не трогаем!)
-        const { error } = await supabaseClient
-            .from('risk_control')
-            .update({ 
-                limit_type: limitType,
-                unlock_at: unlockAt
-            })
-            .eq('id', 1);
+        async function updateRiskStateInDB(limitType) {
+            updateSyncStatus('syncing');
+            if (isDemoMode || !supabaseClient) {
+                updateSyncStatus('demo');
+                return;
+            }
 
-        if (error) throw error;
-        
-        await fetchData(); // Подтягиваем обновленные данные
-        updateSyncStatus('success');
-    } catch (err) {
-        console.error('Ошибка записи в risk_control:', err);
-        updateSyncStatus('error');
-    }
-}
+            try {
+                let unlockAt = null;
+                const now = new Date();
+
+                if (limitType === 'manual_1h') {
+                    unlockAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
+                } else if (limitType === 'asia') {
+                    const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
+                    const ctDate = new Date(ctStr);
+                    ctDate.setHours(24, 0, 0, 0);
+                    unlockAt = ctDate.toISOString();
+                }
+
+                // Записываем limit_type и unlock_at (full_stop не трогаем, им управляет база)
+                const { error } = await supabaseClient
+                    .from('risk_control')
+                    .update({ 
+                        limit_type: limitType,
+                        unlock_at: unlockAt
+                    })
+                    .eq('id', 1);
+
+                if (error) throw error;
+                
+                await fetchData();
+                updateSyncStatus('success');
+            } catch (err) {
+                console.error('Ошибка записи в risk_control:', err);
+                updateSyncStatus('error');
+                alert('Ошибка записи в БД: ' + err.message);
+            }
+        }
 
         function makeClient(url, key) {
             supabaseClient = supabase.createClient(url, key);
@@ -474,16 +468,13 @@ async function updateRiskStateInDB(limitType) {
         async function fetchData() {
             updateSyncStatus('syncing');
             if (isDemoMode || !supabaseClient) {
-                const fs = localStorage.getItem('sim_full_stop') === 'true';
-                const lt = localStorage.getItem('sim_limit_type') || '';
-                renderRiskStatus({ full_stop: fs, limit_type: lt, loss_limit: -1000, profit_limit: 1000 });
+                renderRiskStatus({ full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 });
                 renderTrades([{ trade_no: 104, account_name: 'Sim101', instrument: 'NQ', opened_at: new Date().toISOString(), net_now: 0, cash: 320.50 }]);
                 updateSyncStatus('demo');
                 return;
             }
 
             try {
-                // 1. Читаем risk_control (id = 1) из Supabase
                 const { data: riskData, error: riskErr } = await supabaseClient
                     .from('risk_control')
                     .select('*')
@@ -492,7 +483,6 @@ async function updateRiskStateInDB(limitType) {
 
                 if (riskErr) throw riskErr;
 
-                // 2. Читаем сделки
                 const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
                 const { data: tradesData } = await supabaseClient
                     .from('trade_summary')
@@ -515,7 +505,7 @@ async function updateRiskStateInDB(limitType) {
         function updateSyncStatus(state) {
             const dot = document.getElementById('syncDot');
             const text = document.getElementById('syncText');
-            if (state === 'syncing') { dot.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"; text.innerText = "Запись в БД..."; }
+            if (state === 'syncing') { dot.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"; text.innerText = "Обновление..."; }
             else if (state === 'success') { dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500"; text.innerText = "Синхронизировано"; }
             else if (state === 'demo') { dot.className = "w-1.5 h-1.5 rounded-full bg-indigo-400"; text.innerText = "Демо режим"; }
             else { dot.className = "w-1.5 h-1.5 rounded-full bg-rose-500"; text.innerText = "Ошибка сети"; }
@@ -523,6 +513,9 @@ async function updateRiskStateInDB(limitType) {
 
         function renderRiskStatus(risk) {
             if (!risk) risk = { full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 };
+
+            // Сохраняем текущий тип лимита для блокировки кнопок
+            currentLimitType = risk.limit_type || '';
 
             document.getElementById('lossLimitVal').innerText = `$${Number(risk.loss_limit || -1000).toLocaleString('en-US')}`;
             document.getElementById('profitLimitVal').innerText = `+$${Number(risk.profit_limit || 1000).toLocaleString('en-US')}`;
@@ -535,6 +528,21 @@ async function updateRiskStateInDB(limitType) {
             const statCard = document.getElementById('statProtectionCard');
             const statTitle = document.getElementById('statProtectionTitle');
             const statSub = document.getElementById('statProtectionSub');
+
+            // Визуальное блокирование кнопок при системном лимите (loss / profit)
+            const buttonsContainer = document.getElementById('controlButtonsContainer');
+            const subText = document.getElementById('panelSubText');
+            if (currentLimitType === 'loss' || currentLimitType === 'profit') {
+                buttonsContainer.style.opacity = '0.4';
+                buttonsContainer.style.pointerEvents = 'none';
+                subText.innerText = `🔒 Заблокировано системой (${currentLimitType.toUpperCase()} LIMIT)`;
+                subText.className = "text-[11px] text-rose-400 font-bold";
+            } else {
+                buttonsContainer.style.opacity = '1';
+                buttonsContainer.style.pointerEvents = 'auto';
+                subText.innerText = "Управление режимами в risk_control";
+                subText.className = "text-[11px] text-slate-400";
+            }
 
             if (countdownTimer) {
                 clearInterval(countdownTimer);
@@ -554,9 +562,7 @@ async function updateRiskStateInDB(limitType) {
                     statSub.innerText = "Без кнопки сброса";
                 }
             } else {
-                const limitType = risk.limit_type || '';
-
-                if (limitType === 'manual_1h') {
+                if (currentLimitType === 'manual_1h') {
                     banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
                     badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
                     badge.innerText = "COOLDOWN PAUSE (1H)";
@@ -568,7 +574,7 @@ async function updateRiskStateInDB(limitType) {
                         statTitle.innerHTML = `<i data-lucide="timer" class="w-5 h-5 inline mr-1"></i><span class="text-amber-400">ПАУЗА 1Ч</span>`;
                         statSub.innerText = "Охлаждение тильта";
                     }
-                } else if (limitType === 'asia') {
+                } else if (currentLimitType === 'asia') {
                     banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-indigo-950/40 border-indigo-500/40 shadow-lg shadow-indigo-950/30";
                     badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30";
                     badge.innerText = "ASIA LOCK";
@@ -583,10 +589,10 @@ async function updateRiskStateInDB(limitType) {
                 } else {
                     banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-rose-950/40 border-rose-500/40 shadow-lg shadow-rose-950/30";
                     badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-subtle-pulse";
-                    badge.innerText = "SESSION STOP";
+                    badge.innerText = currentLimitType ? currentLimitType.toUpperCase() + " STOP" : "SESSION STOP";
                     title.innerText = "ДОСТИГНУТ ЛИМИТ / СТОП";
                     title.className = "text-2xl font-black tracking-tight text-rose-400 pt-1";
-                    desc.innerText = "Принудительная остановка сессии активирована. Торговля закрыта.";
+                    desc.innerText = `Принудительная остановка сессии активирована (${currentLimitType || 'limit'}). Торговля закрыта.`;
 
                     if (statCard) {
                         statTitle.innerHTML = `<i data-lucide="stop-circle" class="w-5 h-5 inline mr-1"></i><span class="text-rose-400">СТОП СЕССИИ</span>`;
