@@ -352,7 +352,7 @@
             closeConfirmModal();
             await updateRiskStateInDB(true, type);
         }
-async function updateRiskStateInDB(fullStop, limitType) {
+async function _updateRiskStateInDB(fullStop, limitType) {
     updateSyncStatus('syncing');
     if (isDemoMode || !supabaseClient) {
         updateSyncStatus('demo');
@@ -379,7 +379,7 @@ async function updateRiskStateInDB(fullStop, limitType) {
         alert('Ошибка записи: ' + err.message);
     }
 }
-        async function _updateRiskStateInDB(fullStop, limitType) {
+        async function updateRiskStateInDB(fullStop, limitType) {
             updateSyncStatus('syncing');
             if (isDemoMode || !supabaseClient) {
                 // Демо-режим симуляция
