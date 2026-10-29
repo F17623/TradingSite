@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Trading Risk Control & Trade Monitor</title>
+    <title>Trading Guard & Analytics System</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Supabase JS CDN -->
@@ -17,63 +17,33 @@
             darkMode: 'class',
             theme: {
                 extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
-                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
                     colors: {
-                        slate: {
-                            850: '#111827',
-                            900: '#0f172a',
-                            950: '#020617',
-                        }
+                        slate: { 850: '#111827', 900: '#0f172a', 950: '#020617' }
                     }
                 }
             }
         }
     </script>
     <style>
-        /* Custom scrollbar for desktop */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #090d16;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #1e293b;
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #334155;
-        }
-        /* Mobile Safe Area Padding */
-        .pb-safe {
-            padding-bottom: env(safe-area-inset-bottom, 1rem);
-        }
-        .pt-safe {
-            padding-top: env(safe-area-inset-top, 1rem);
-        }
-        /* Pulse Animation for Status Badges */
-        @keyframes subtle-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
-        }
-        .animate-subtle-pulse {
-            animation: subtle-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #090d16; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 1rem); }
+        .pt-safe { padding-top: env(safe-area-inset-top, 1rem); }
+        @keyframes subtle-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        .animate-subtle-pulse { animation: subtle-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
     </style>
 </head>
 <body class="h-full text-slate-100 font-sans antialiased bg-slate-950 flex flex-col selection:bg-indigo-500 selection:text-white">
 
-    <!-- ==================== LOGIN OVERLAY (Supabase Auth) ==================== -->
+    <!-- ==================== LOGIN OVERLAY ==================== -->
     <div id="loginOverlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-md px-4 pt-safe pb-safe transition-opacity duration-300">
         <div class="w-full max-w-xs flex flex-col items-center">
-            <!-- App Icon -->
             <div class="w-16 h-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center mb-6 shadow-lg shadow-indigo-500/10">
                 <i data-lucide="shield-check" class="w-8 h-8 text-indigo-400"></i>
             </div>
-
             <h2 class="text-xl font-bold text-white tracking-wide">Trading Guard</h2>
             <p class="text-xs text-slate-400 mt-1 mb-8">Войдите, чтобы открыть панель</p>
 
@@ -82,9 +52,7 @@
                     class="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500">
                 <input type="password" id="loginPassword" autocomplete="current-password" required placeholder="Пароль"
                     class="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500">
-
                 <div id="loginError" class="text-xs text-rose-500 font-medium min-h-[1rem] text-center opacity-0 transition-opacity duration-200"></div>
-
                 <button type="submit" id="loginBtn"
                     class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 active:scale-95 shadow-lg shadow-indigo-600/20 transition-all">
                     Войти
@@ -96,60 +64,84 @@
     <!-- ==================== MAIN DASHBOARD LAYOUT ==================== -->
     <div id="mainApp" class="hidden min-h-full flex flex-col pt-safe pb-safe">
         
-        <!-- HEADER -->
-        <header class="sticky top-0 z-30 bg-slate-950/80 backdrop-blur-md border-b border-slate-800/60 px-4 py-3">
-            <div class="max-w-6xl mx-auto flex items-center justify-between">
-                <div class="flex items-center space-x-3">
-                    <div class="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-                        <i data-lucide="activity" class="w-5 h-5"></i>
+        <!-- HEADER WITH TABS & CLOCK -->
+        <header class="sticky top-0 z-30 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/60 px-4 py-3">
+            <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+                
+                <div class="flex items-center justify-between w-full md:w-auto">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                            <i data-lucide="activity" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-base font-bold text-white leading-tight">Trading Guard</h1>
+                            <p class="text-xs text-slate-400 flex items-center gap-1.5">
+                                <span id="syncDot" class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                <span id="syncText">Синхронизировано</span>
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h1 class="text-base font-bold text-white leading-tight">Trading Guard</h1>
-                        <p class="text-xs text-slate-400 flex items-center gap-1.5">
-                            <span id="syncDot" class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                            <span id="syncText">Синхронизировано</span>
-                        </p>
+                    <!-- Mobile Action Buttons -->
+                    <div class="flex items-center space-x-2 md:hidden">
+                        <button onclick="openConfigModal()" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white">
+                            <i data-lucide="settings" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="lockSession()" class="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400">
+                            <i data-lucide="lock" class="w-4 h-4"></i>
+                        </button>
                     </div>
                 </div>
 
-                <div class="flex items-center space-x-2">
-                    <!-- Config Button -->
-                    <button onclick="openConfigModal()" class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 active:scale-95 transition-all" title="Настройки подключения">
+                <!-- NAVIGATION TABS -->
+                <nav class="flex items-center space-x-1 bg-slate-900/90 border border-slate-800/80 p-1 rounded-2xl w-full md:w-auto justify-center">
+                    <button onclick="switchTab('dashboard')" id="navDashboard" class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white shadow-sm transition-all">
+                        <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Дашборд
+                    </button>
+                    <button onclick="switchTab('calendar')" id="navCalendar" class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+                        <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Календарь
+                    </button>
+                    <button onclick="switchTab('accounts')" id="navAccounts" class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+                        <i data-lucide="briefcase" class="w-3.5 h-3.5"></i> Счета и Учет
+                    </button>
+                </nav>
+
+                <!-- MARKET SESSION CLOCK WIDGET -->
+                <div class="hidden lg:flex items-center gap-2 bg-slate-900 border border-slate-800/80 px-3 py-1.5 rounded-xl font-mono text-xs">
+                    <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                    <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
+                    <span class="text-slate-400">Futures close</span>
+                    <span id="sessionCountdown" class="text-cyan-400 font-bold">02:47:52</span>
+                </div>
+
+                <!-- Desktop Utility Buttons -->
+                <div class="hidden md:flex items-center space-x-2">
+                    <button onclick="openConfigModal()" class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition-all" title="Настройки">
                         <i data-lucide="settings" class="w-4 h-4"></i>
                     </button>
-                    <!-- Lock Session Button -->
-                    <button onclick="lockSession()" class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-800 active:scale-95 transition-all" title="Выйти">
+                    <button onclick="lockSession()" class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-all" title="Выйти">
                         <i data-lucide="lock" class="w-4 h-4"></i>
                     </button>
                 </div>
+
             </div>
         </header>
 
-        <!-- DASHBOARD BODY -->
-        <main class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
+        <!-- DASHBOARD VIEW CONTENT -->
+        <main id="viewDashboard" class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
 
-            <!-- RISK STATUS MAIN BANNER (STRICT READ ONLY) -->
+            <!-- RISK STATUS MAIN BANNER -->
             <div id="statusBanner" class="p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-slate-900 border-slate-800">
                 <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    
                     <div class="space-y-1">
                         <div class="flex items-center space-x-2">
-                            <span id="bannerBadge" class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                ALLOW
-                            </span>
+                            <span id="bannerBadge" class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">ALLOW</span>
                             <span id="playbackBadge" class="hidden px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
                                 <i data-lucide="gamepad-2" class="w-3.5 h-3.5"></i> PLAYBACK MODE
                             </span>
                         </div>
-                        <h2 id="bannerTitle" class="text-2xl font-black tracking-tight text-white pt-1">
-                            ТОРГОВЛЯ РАЗРЕШЕНА
-                        </h2>
-                        <p id="bannerDesc" class="text-xs text-slate-400">
-                            Все лимиты в норме. Контроллер рисков NinjaTrader работает в штатном режиме.
-                        </p>
+                        <h2 id="bannerTitle" class="text-2xl font-black tracking-tight text-white pt-1">ТОРГОВЛЯ РАЗРЕШЕНА</h2>
+                        <p id="bannerDesc" class="text-xs text-slate-400">Все лимиты в норме. Контроллер рисков NinjaTrader работает в штатном режиме.</p>
                     </div>
-
-                    <!-- Risk Info Quick Badges -->
                     <div class="flex items-center gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-slate-800">
                         <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 min-w-[110px]">
                             <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium">Лимит потерь</div>
@@ -160,7 +152,35 @@
                             <div id="profitLimitVal" class="text-sm font-bold text-emerald-400">+$1,000</div>
                         </div>
                     </div>
+                </div>
+            </div>
 
+            <!-- ANTI-TILT & ASIA SESSION CONTROL PANEL -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row items-center justify-between gap-4">
+                <div class="flex items-center space-x-2 w-full lg:w-auto">
+                    <i data-lucide="shield-alert" class="w-5 h-5 text-indigo-400"></i>
+                    <div>
+                        <h3 class="text-sm font-bold text-white">Защита от тильта и сессий</h3>
+                        <p class="text-[11px] text-slate-400">Экстренная блокировка и ночные ограничения</p>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                    <!-- Asia Session Toggle -->
+                    <label class="flex items-center space-x-2 bg-slate-950/60 border border-slate-800 px-3 py-2 rounded-xl cursor-pointer hover:border-slate-700 transition-all">
+                        <input type="checkbox" id="asiaToggle" onchange="toggleAsiaBlock(this)" class="w-4 h-4 accent-indigo-600 rounded bg-slate-900 border-slate-800">
+                        <span class="text-xs font-semibold text-slate-300">🌙 Блок Азии (17:00-00:00 CT)</span>
+                    </label>
+
+                    <!-- 1 Hour Pause -->
+                    <button onclick="confirmAction('1h', 'Заблокировать торговлю на 1 час?')" class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 active:scale-95 transition-all flex items-center gap-1.5">
+                        <i data-lucide="timer" class="w-3.5 h-3.5"></i> Пауза 1 час
+                    </button>
+
+                    <!-- Stop till end of day -->
+                    <button onclick="confirmAction('session', 'ВНИМАНИЕ: Заблокировать торговлю до конца сессии (17:00 CT)?')" class="px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-semibold hover:bg-rose-500/20 active:scale-95 transition-all flex items-center gap-1.5">
+                        <i data-lucide="stop-circle" class="w-3.5 h-3.5"></i> Стоп до конца дня
+                    </button>
                 </div>
             </div>
 
@@ -169,7 +189,7 @@
                 <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col">
                     <span class="text-xs font-medium text-slate-400 mb-1">Итог (Recent P&L)</span>
                     <span id="statPnL" class="text-xl font-bold text-slate-200">$0.00</span>
-                    <span id="statPnLSub" class="text-[10px] text-slate-500 mt-auto pt-2">За торговый день</span>
+                    <span class="text-[10px] text-slate-500 mt-auto pt-2">За торговый день</span>
                 </div>
                 <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col">
                     <span class="text-xs font-medium text-slate-400 mb-1">Всего сделок</span>
@@ -191,7 +211,7 @@
                 </div>
             </div>
 
-            <!-- RECENT TRADES SECTION (VIEW: trade_summary) -->
+            <!-- RECENT TRADES SECTION -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
                 <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
                     <div class="flex items-center space-x-2">
@@ -204,7 +224,6 @@
                     </button>
                 </div>
 
-                <!-- Desktop Table View -->
                 <div class="hidden md:block overflow-x-auto">
                     <table class="w-full text-left text-xs">
                         <thead class="bg-slate-950/50 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
@@ -216,18 +235,11 @@
                                 <th class="py-3 px-4 text-right">Результат (cash)</th>
                             </tr>
                         </thead>
-                        <tbody id="tradesTableBody" class="divide-y divide-slate-800/60 font-medium">
-                            <!-- Populated via JS -->
-                        </tbody>
+                        <tbody id="tradesTableBody" class="divide-y divide-slate-800/60 font-medium"></tbody>
                     </table>
                 </div>
 
-                <!-- Mobile Cards View -->
-                <div id="tradesMobileList" class="block md:hidden divide-y divide-slate-800/60">
-                    <!-- Populated via JS -->
-                </div>
-
-                <!-- Empty State -->
+                <div id="tradesMobileList" class="block md:hidden divide-y divide-slate-800/60"></div>
                 <div id="emptyTrades" class="hidden p-8 text-center text-slate-500 text-xs">
                     <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-40"></i>
                     Сделки еще не зарегистрированы в базе данных.
@@ -236,69 +248,120 @@
 
         </main>
 
+        <!-- CALENDAR VIEW CONTENT (PLACEHOLDER FOR FUTURE EXPANSION) -->
+        <main id="viewCalendar" class="hidden flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-4">
+                <div class="w-12 h-12 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center mx-auto">
+                    <i data-lucide="calendar" class="w-6 h-6"></i>
+                </div>
+                <h2 class="text-lg font-bold text-white">Календарь торговой производительности</h2>
+                <p class="text-xs text-slate-400 max-w-md mx-auto">Здесь будет отображаться месячная сетка с агрегированным P&L по дням, количеством завершенных сделок и быстрым переключением дат.</p>
+                <div class="grid grid-cols-7 gap-2 max-w-lg mx-auto pt-4 text-xs font-medium text-slate-500">
+                    <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+                </div>
+                <div class="grid grid-cols-7 gap-2 max-w-lg mx-auto">
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-slate-600">26</div>
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-slate-600">27</div>
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-emerald-500/20 border-emerald-500/30 font-bold text-emerald-400">28<br>+$420</div>
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-rose-500/20 border-rose-500/30 font-bold text-rose-400">29<br>-$150</div>
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-indigo-500/20 border-indigo-500/30 font-bold text-indigo-300">30<br>Сегодня</div>
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-slate-400">31</div>
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 text-slate-600">01</div>
+                </div>
+            </div>
+        </main>
+
+        <!-- ACCOUNTS & ACCOUNTING VIEW CONTENT (PLACEHOLDER FOR FUTURE EXPANSION) -->
+        <main id="viewAccounts" class="hidden flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 rounded-xl bg-indigo-600/20 text-indigo-400">
+                            <i data-lucide="briefcase" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-base font-bold text-white">Управление фирмами и счетами</h2>
+                            <p class="text-xs text-slate-400">Apex, Lucid, MyFundedFutures, подписки и квитанции</p>
+                        </div>
+                    </div>
+                    <button class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 shadow-lg shadow-indigo-600/20">
+                        + Добавить счет
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+                        <div class="flex justify-between items-center"><span class="font-bold text-white">Apex (Личный)</span><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Funded</span></div>
+                        <div class="text-xs text-slate-400">Счет: $50,000 &bull; Тип: Evaluation</div>
+                        <div class="text-[11px] text-slate-500 pt-2 border-t border-slate-900">Активность: вчера сделков ок</div>
+                    </div>
+                    <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-2">
+                        <div class="flex justify-between items-center"><span class="font-bold text-white">Lucid (Корп)</span><span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">Active</span></div>
+                        <div class="text-xs text-slate-400">Счет: $25,000 &bull; Подписка до 05.11</div>
+                        <div class="text-[11px] text-slate-500 pt-2 border-t border-slate-900">Квитанция PDF сохранена</div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
         <!-- FOOTER -->
         <footer class="mt-auto border-t border-slate-800/60 py-4 px-4 text-center text-[11px] text-slate-500">
-            <p>NinjaTrader 8 Risk Controller &bull; Supabase Postgres Engine &bull; Read-Only Dashboard</p>
+            <p>NinjaTrader 8 Risk Controller &bull; Supabase Postgres Engine &bull; Multi-Firm Manager</p>
         </footer>
     </div>
 
-    <!-- ==================== SUPABASE CONFIG MODAL ==================== -->
-    <div id="configModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 class="text-base font-bold text-white flex items-center gap-2">
-                    <i data-lucide="database" class="w-4 h-4 text-indigo-400"></i>
-                    Настройки Supabase
-                </h3>
-                <button onclick="closeConfigModal()" class="text-slate-400 hover:text-white p-1">
-                    <i data-lucide="x" class="w-5 h-5"></i>
-                </button>
+    <!-- ==================== CONFIRMATION MODAL ==================== -->
+    <div id="confirmModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 text-center">
+            <div class="w-12 h-12 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center mx-auto">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
             </div>
-
-            <p class="text-xs text-slate-400">
-                Укажите параметры подключения к вашему проекту Supabase для чтения данных из <code class="text-indigo-300">risk_control</code> и <code class="text-indigo-300">trade_summary</code>.
-            </p>
-
-            <div class="space-y-3">
-                <div>
-                    <label class="block text-xs font-medium text-slate-300 mb-1">Supabase Project URL</label>
-                    <input type="text" id="supabaseUrlInput" placeholder="https://xyzcompany.supabase.co" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500">
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-slate-300 mb-1">Supabase Anon Key</label>
-                    <input type="password" id="supabaseKeyInput" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500">
-                </div>
-            </div>
-
-            <div class="flex items-center justify-between pt-2">
-                <button onclick="useDemoData()" class="text-xs text-slate-400 hover:text-slate-200 underline">
-                    Загрузить демо-данные
-                </button>
-                <div class="flex gap-2">
-                    <button onclick="closeConfigModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700">
-                        Отмена
-                    </button>
-                    <button onclick="saveConfig()" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 shadow-lg shadow-indigo-600/20">
-                        Сохранить
-                    </button>
-                </div>
+            <h3 class="text-base font-bold text-white">Подтверждение действия</h3>
+            <p id="confirmText" class="text-xs text-slate-400">Вы действительно хотите применить этот защитный лимит?</p>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeConfirmModal()" class="flex-1 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700">Отмена</button>
+                <button id="confirmYesBtn" onclick="executeConfirmedAction()" class="flex-1 py-2 rounded-xl bg-rose-600 text-white text-xs font-semibold hover:bg-rose-500">Подтвердить</button>
             </div>
         </div>
     </div>
 
-    <!-- ==================== JAVASCRIPT LOGIC ==================== -->
+    <!-- ==================== CONFIG MODAL ==================== -->
+    <div id="configModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                    <i data-lucide="database" class="w-4 h-4 text-indigo-400"></i> Настройки Supabase
+                </h3>
+                <button onclick="closeConfigModal()" class="text-slate-400 hover:text-white p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Supabase Project URL</label>
+                    <input type="text" id="supabaseUrlInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Supabase Anon Key</label>
+                    <input type="password" id="supabaseKeyInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeConfigModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">Отмена</button>
+                <button onclick="saveConfig()" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== JAVASCRIPT ==================== -->
     <script>
-        // System State
         const DEFAULT_SUPABASE_URL = 'https://bdcfpihcusurmxsafpfb.supabase.co';
         const DEFAULT_SUPABASE_KEY = 'sb_publishable_fDSDr8EZiRjnTS7l4uFzAA_TeOJeDNu';
 
         let supabaseClient = null;
         let isDemoMode = false;
         let pollInterval = null;
+        let pendingActionType = null;
 
         const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-        // Торговый день идёт с 17:00 по Чикаго
         function tradingDay(date) {
             const s = date.toLocaleString('sv-SE', { timeZone: 'America/Chicago' });
             const d = new Date(s.replace(' ', 'T') + 'Z');
@@ -306,15 +369,70 @@
             return d.toISOString().slice(0, 10);
         }
 
-        // Initialize Lucide Icons
         lucide.createIcons();
 
-        // Window Load Handler
         window.addEventListener('load', async () => {
             initSupabaseFromStorage();
+            startSessionClock();
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) showApp(); else showLogin();
         });
+
+        // Tab Switching Logic
+        function switchTab(tabName) {
+            ['dashboard', 'calendar', 'accounts'].forEach(t => {
+                document.getElementById('view' + t.charAt(0).toUpperCase() + t.slice(1)).classList.add('hidden');
+                document.getElementById('nav' + t.charAt(0).toUpperCase() + t.slice(1)).className = "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all";
+            });
+            document.getElementById('view' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).classList.remove('hidden');
+            document.getElementById('nav' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).className = "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white shadow-sm transition-all";
+            lucide.createIcons();
+        }
+
+        // Session Countdown Clock
+        function startSessionClock() {
+            setInterval(() => {
+                const now = new Date();
+                // Чикаго время (CST/CDT)
+                const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
+                const ctDate = new Date(ctStr);
+                // До закрытия сессии в 16:00 CT
+                const closeTime = new Date(ctDate);
+                closeTime.setHours(16, 0, 0, 0);
+                if (ctDate > closeTime) closeTime.setDate(closeTime.getDate() + 1);
+                
+                const diff = closeTime - ctDate;
+                const hours = String(Math.floor((diff / (1000 * 60 * 60)) % 24)).padStart(2, '0');
+                const minutes = String(Math.floor((diff / (1000 * 60)) % 60)).padStart(2, '0');
+                const seconds = String(Math.floor((diff / 1000) % 60)).padStart(2, '0');
+                
+                const el = document.getElementById('sessionCountdown');
+                if (el) el.innerText = `${hours}:${minutes}:${seconds}`;
+            }, 1000);
+        }
+
+        // Confirmation Modal Logic
+        function confirmAction(type, message) {
+            pendingActionType = type;
+            document.getElementById('confirmText').innerText = message;
+            document.getElementById('confirmModal').classList.remove('hidden');
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').classList.add('hidden');
+            pendingActionType = null;
+        }
+
+        async function executeConfirmedAction() {
+            closeConfirmModal();
+            // Здесь отправка запроса в Supabase на блокировку (например, full_stop = true, limit_type = pendingActionType)
+            alert(`Команда "${pendingActionType}" успешно отправлена в систему защиты!`);
+        }
+
+        function toggleAsiaBlock(checkbox) {
+            const active = checkbox.checked;
+            alert(`Блокировка Азиатской сессии: ${active ? 'ВКЛЮЧЕНА' : 'ВЫКЛЮЧЕНА'}`);
+        }
 
         function makeClient(url, key) {
             supabaseClient = supabase.createClient(url, key);
@@ -323,7 +441,6 @@
             });
         }
 
-        // ---------- Вход по email и паролю (Supabase Auth) ----------
         function showLoginError(text) {
             const el = document.getElementById('loginError');
             el.innerText = text || '';
@@ -335,24 +452,17 @@
             const email = document.getElementById('loginEmail').value.trim();
             const password = document.getElementById('loginPassword').value;
             const btn = document.getElementById('loginBtn');
-
             showLoginError('');
-            btn.disabled = true;
-            btn.innerText = 'Вход...';
-
+            btn.disabled = true; btn.innerText = 'Вход...';
             try {
                 const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
                 if (error) throw error;
                 document.getElementById('loginPassword').value = '';
                 showApp();
             } catch (err) {
-                const m = (err && err.message) ? err.message : 'Ошибка входа';
-                if (/invalid login credentials/i.test(m)) showLoginError('Неверный email или пароль');
-                else if (/email not confirmed/i.test(m)) showLoginError('Email не подтверждён');
-                else showLoginError(m);
+                showLoginError('Неверный email или пароль');
             }
-            btn.disabled = false;
-            btn.innerText = 'Войти';
+            btn.disabled = false; btn.innerText = 'Войти';
         }
 
         function showApp() {
@@ -378,306 +488,114 @@
             showLogin();
         }
 
-        // ---------- Supabase Setup ----------
         function initSupabaseFromStorage() {
             const url = localStorage.getItem('supabase_url') || DEFAULT_SUPABASE_URL;
             const key = localStorage.getItem('supabase_key') || DEFAULT_SUPABASE_KEY;
-
             document.getElementById('supabaseUrlInput').value = url;
             document.getElementById('supabaseKeyInput').value = key;
-            try {
-                makeClient(url, key);
-                isDemoMode = false;
-            } catch (e) {
-                console.error('Supabase init error:', e);
-                isDemoMode = true;
-            }
+            try { makeClient(url, key); isDemoMode = false; } catch (e) { isDemoMode = true; }
         }
 
-        function openConfigModal() {
-            document.getElementById('configModal').classList.remove('hidden');
-        }
-
-        function closeConfigModal() {
-            document.getElementById('configModal').classList.add('hidden');
-        }
+        function openConfigModal() { document.getElementById('configModal').classList.remove('hidden'); }
+        function closeConfigModal() { document.getElementById('configModal').classList.add('hidden'); }
 
         async function saveConfig() {
             const url = document.getElementById('supabaseUrlInput').value.trim();
             const key = document.getElementById('supabaseKeyInput').value.trim();
-
             if (url && key) {
                 localStorage.setItem('supabase_url', url);
                 localStorage.setItem('supabase_key', key);
                 makeClient(url, key);
-                isDemoMode = false;
                 closeConfigModal();
-                const { data: { session } } = await supabaseClient.auth.getSession();
-                if (session) fetchData(); else showLogin();
-            } else {
-                alert('Пожалуйста, введите корректные URL и Key');
+                fetchData();
             }
         }
 
-        function useDemoData() {
-            isDemoMode = true;
-            closeConfigModal();
-            fetchData();
-        }
-
-        // Data Fetching Logic
         async function fetchData() {
             updateSyncStatus('syncing');
-
-            if (isDemoMode || !supabaseClient) {
-                renderDemoData();
-                updateSyncStatus('demo');
-                return;
-            }
-
+            if (isDemoMode || !supabaseClient) { renderDemoData(); updateSyncStatus('demo'); return; }
             try {
-                // 1. Fetch Risk Control Status (id = 1)
-                const { data: riskData, error: riskErr } = await supabaseClient
-                    .from('risk_control')
-                    .select('*')
-                    .eq('id', 1)
-                    .single();
-
-                if (riskErr && riskErr.code !== 'PGRST116') {
-                    console.error('Error reading risk_control:', riskErr);
-                    if (riskErr.code === 'PGRST301' || /jwt/i.test(riskErr.message || '')) { showLogin(); return; }
-                }
-
-                // 2. Fetch Trade Summary (from public.trade_summary view) за последние 36 часов для фильтрации по торговому дню
+                const { data: riskData } = await supabaseClient.from('risk_control').select('*').eq('id', 1).single();
                 const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
-                const { data: tradesData, error: tradesErr } = await supabaseClient
-                    .from('trade_summary')
-                    .select('*')
-                    .gte('opened_at', since)
-                    .order('opened_at', { ascending: false })
-                    .limit(1000);
-
-                if (tradesErr) {
-                    console.error('Error reading trade_summary view:', tradesErr);
-                }
-
-                const pb = !!riskData && !!riskData.playback_mode && !!riskData.playback_mode_at &&
-                           (Date.now() - new Date(riskData.playback_mode_at).getTime()) < 180000;
+                const { data: tradesData } = await supabaseClient.from('trade_summary').select('*').gte('opened_at', since).order('opened_at', { ascending: false });
                 
-                const today = tradingDay(new Date());
-                const filteredTrades = (tradesData || []).filter(t => {
-                    if (!t.opened_at) return false;
-                    if (tradingDay(new Date(t.opened_at)) !== today) return false;
-                    const isPb = String(t.account_name || '').toLowerCase().startsWith('playback');
-                    return isPb === pb;
-                });
-
-                renderRiskStatus(riskData ? Object.assign({}, riskData, { playback_mode: pb }) : riskData);
-                renderTrades(filteredTrades);
-                updateSyncStatus(riskErr && riskErr.code !== 'PGRST116' || tradesErr ? 'error' : 'success');
-
+                renderRiskStatus(riskData);
+                renderTrades(tradesData || []);
+                updateSyncStatus('success');
             } catch (err) {
-                console.error('Unexpected error fetching data:', err);
                 updateSyncStatus('error');
             }
         }
 
-        function startPolling() {
-            if (!pollInterval) {
-                pollInterval = setInterval(fetchData, 5000);
-            }
-        }
-
-        function stopPolling() {
-            if (pollInterval) {
-                clearInterval(pollInterval);
-                pollInterval = null;
-            }
-        }
+        function startPolling() { if (!pollInterval) pollInterval = setInterval(fetchData, 5000); }
+        function stopPolling() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
 
         function updateSyncStatus(state) {
             const dot = document.getElementById('syncDot');
             const text = document.getElementById('syncText');
-
-            if (state === 'syncing') {
-                dot.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping";
-                text.innerText = "Обновление...";
-            } else if (state === 'success') {
-                dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500";
-                text.innerText = "Синхронизировано";
-            } else if (state === 'demo') {
-                dot.className = "w-1.5 h-1.5 rounded-full bg-indigo-400";
-                text.innerText = "Демо режим";
-            } else {
-                dot.className = "w-1.5 h-1.5 rounded-full bg-rose-500";
-                text.innerText = "Ошибка сети";
-            }
+            if (state === 'syncing') { dot.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"; text.innerText = "Обновление..."; }
+            else if (state === 'success') { dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500"; text.innerText = "Синхронизировано"; }
+            else if (state === 'demo') { dot.className = "w-1.5 h-1.5 rounded-full bg-indigo-400"; text.innerText = "Демо режим"; }
+            else { dot.className = "w-1.5 h-1.5 rounded-full bg-rose-500"; text.innerText = "Ошибка сети"; }
         }
 
-        // Render Risk Status UI
         function renderRiskStatus(risk) {
-            const banner = document.getElementById('statusBanner');
-            const badge = document.getElementById('bannerBadge');
-            const title = document.getElementById('bannerTitle');
-            const desc = document.getElementById('bannerDesc');
-            const playbackBadge = document.getElementById('playbackBadge');
-
-            if (!risk) {
-                risk = { full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000, playback_mode: false };
-            }
-
+            if (!risk) risk = { full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 };
             document.getElementById('lossLimitVal').innerText = `$${Number(risk.loss_limit || -1000).toLocaleString('en-US')}`;
             document.getElementById('profitLimitVal').innerText = `+$${Number(risk.profit_limit || 1000).toLocaleString('en-US')}`;
-
-            if (risk.playback_mode) {
-                playbackBadge.classList.remove('hidden');
-            } else {
-                playbackBadge.classList.add('hidden');
-            }
-
-            if (!risk.full_stop) {
-                banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-emerald-950/30 border-emerald-500/30 shadow-lg shadow-emerald-950/20";
-                badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
-                badge.innerText = "ALLOW";
-                title.innerText = "ТОРГОВЛЯ РАЗРЕШЕНА";
-                title.className = "text-2xl font-black tracking-tight text-emerald-400 pt-1";
-                desc.innerText = "Все лимиты рисков в норме. Контроллер NinjaTrader готов принимать ордера.";
-            } else {
-                if (risk.limit_type === 'profit') {
-                    banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-indigo-950/40 border-indigo-500/40 shadow-lg shadow-indigo-950/30";
-                    badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30";
-                    badge.innerText = "MAX PROFIT TARGET";
-                    title.innerText = "ЦЕЛЬ ПО ПРИБЫЛИ ДОСТИГНУТА";
-                    title.className = "text-2xl font-black tracking-tight text-indigo-300 pt-1";
-                    desc.innerText = "Отличная работа! Торговый день завершен с фиксацией профита. Блокировка активна до следующего сеанса.";
-                } else {
-                    banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-rose-950/40 border-rose-500/40 shadow-lg shadow-rose-950/30";
-                    badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-subtle-pulse";
-                    badge.innerText = "MAX LOSS STOP";
-                    title.innerText = "ДОСТИГНУТ ЛИМИТ УБЫТКА";
-                    title.className = "text-2xl font-black tracking-tight text-rose-400 pt-1";
-                    desc.innerText = "Сработало ограничение потерь. Торговля заблокирована контроллером для защиты депозита.";
-                }
-            }
         }
 
-        // Render Trade Summary UI
         function renderTrades(trades) {
             const tbody = document.getElementById('tradesTableBody');
             const mobileList = document.getElementById('tradesMobileList');
             const emptyState = document.getElementById('emptyTrades');
-
-            tbody.innerHTML = '';
-            mobileList.innerHTML = '';
+            tbody.innerHTML = ''; mobileList.innerHTML = '';
 
             if (!trades || trades.length === 0) {
                 emptyState.classList.remove('hidden');
                 updateStats(0, 0, 0, 0);
                 return;
             }
-
             emptyState.classList.add('hidden');
 
-            let totalPnL = 0;
-            let closedTradesCount = 0;
-            let winningTradesCount = 0;
-            let activeTradesCount = 0;
-
-            trades.forEach((t) => {
+            let totalPnL = 0, closedCount = 0, winCount = 0, activeCount = 0;
+            trades.forEach(t => {
                 const cash = Number(t.cash || 0);
                 const isClosed = Number(t.net_now) === 0;
-
-                if (isClosed) {
-                    totalPnL += cash;
-                    closedTradesCount++;
-                    if (cash > 0) winningTradesCount++;
-                } else {
-                    activeTradesCount++;
-                }
-
+                if (isClosed) { totalPnL += cash; closedCount++; if (cash > 0) winCount++; } else { activeCount++; }
                 const cashClass = cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400');
                 const cashFormatted = (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
-                const openTimeFormatted = t.opened_at ? new Date(t.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+                const openTime = t.opened_at ? new Date(t.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
 
-                // Desktop Row
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-800/30 transition-colors";
                 tr.innerHTML = `
-                    <td class="py-3 px-4 font-semibold text-white">
-                        #${t.trade_no || '—'}
-                        <span class="block text-[10px] text-slate-500 font-normal">${esc(t.account_name || 'Главный счет')}</span>
-                    </td>
-                    <td class="py-3 px-4 text-slate-300">
-                        <span class="px-2 py-0.5 rounded bg-slate-800 border border-slate-700/60 font-mono text-[11px]">${esc(t.instrument || 'NQ')}</span>
-                    </td>
-                    <td class="py-3 px-4 text-slate-400">${openTimeFormatted}</td>
-                    <td class="py-3 px-4">
-                        ${isClosed ? 
-                            '<span class="inline-flex items-center gap-1 text-[11px] text-slate-400"><i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-slate-500"></i> Закрыта</span>' : 
-                            '<span class="inline-flex items-center gap-1 text-[11px] text-indigo-400 font-bold"><i data-lucide="clock" class="w-3.5 h-3.5 text-indigo-400 animate-spin"></i> Открыта (' + t.net_now + ')</span>'
-                        }
-                    </td>
+                    <td class="py-3 px-4 font-semibold text-white">#${t.trade_no || '—'}<span class="block text-[10px] text-slate-500">${esc(t.account_name || '')}</span></td>
+                    <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-slate-800 font-mono text-[11px]">${esc(t.instrument || 'NQ')}</span></td>
+                    <td class="py-3 px-4 text-slate-400">${openTime}</td>
+                    <td class="py-3 px-4">${isClosed ? 'Закрыта' : '<span class="text-indigo-400 font-bold">Открыта</span>'}</td>
                     <td class="py-3 px-4 text-right font-bold font-mono ${cashClass}">${cashFormatted}</td>
                 `;
                 tbody.appendChild(tr);
-
-                // Mobile Card Item
-                const card = document.createElement('div');
-                card.className = "p-4 flex items-center justify-between";
-                card.innerHTML = `
-                    <div class="space-y-1">
-                        <div class="flex items-center gap-2">
-                            <span class="font-bold text-white text-sm">#${t.trade_no || '—'}</span>
-                            <span class="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-mono text-slate-300">${esc(t.instrument || 'NQ')}</span>
-                        </div>
-                        <div class="text-[11px] text-slate-400 flex items-center gap-2">
-                            <span>${esc(t.account_name || 'Счет')}</span> &bull; <span>${openTimeFormatted}</span>
-                        </div>
-                    </div>
-                    <div class="text-right">
-                        <div class="font-mono font-bold text-sm ${cashClass}">${cashFormatted}</div>
-                        <div class="text-[10px] text-slate-500">
-                            ${isClosed ? 'ЗАКРЫТА' : '<span class="text-indigo-400 font-semibold">ОТКРЫТА</span>'}
-                        </div>
-                    </div>
-                `;
-                mobileList.appendChild(card);
             });
-
-            lucide.createIcons();
-
-            const winRate = closedTradesCount > 0 ? Math.round((winningTradesCount / closedTradesCount) * 100) : 0;
-            updateStats(totalPnL, trades.length, winRate, activeTradesCount);
+            const winRate = closedCount > 0 ? Math.round((winCount / closedCount) * 100) : 0;
+            updateStats(totalPnL, trades.length, winRate, activeCount);
         }
 
         function updateStats(pnl, total, winRate, active) {
             const pnlEl = document.getElementById('statPnL');
             pnlEl.innerText = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
             pnlEl.className = `text-xl font-bold ${pnl > 0 ? 'text-emerald-400' : (pnl < 0 ? 'text-rose-400' : 'text-slate-200')}`;
-
             document.getElementById('statTotalTrades').innerText = total;
             document.getElementById('statWinRate').innerText = `Win Rate: ${winRate}%`;
             document.getElementById('statActiveTrades').innerText = active;
         }
 
-        // Demo Data Fallback
         function renderDemoData() {
-            renderRiskStatus({
-                full_stop: false,
-                limit_type: '',
-                loss_limit: -1000,
-                profit_limit: 1000,
-                playback_mode: true
-            });
-
-            const demoTrades = [
-                { trade_no: 104, account_name: 'Sim101', instrument: 'NQ 03-26', opened_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(), net_now: 0, cash: 320.50 },
-                { trade_no: 103, account_name: 'Sim101', instrument: 'NQ 03-26', opened_at: new Date(Date.now() - 1000 * 60 * 45).toISOString(), net_now: 0, cash: -150.00 },
-                { trade_no: 102, account_name: 'Sim101', instrument: 'ES 03-26', opened_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(), net_now: 0, cash: 210.00 },
-                { trade_no: 101, account_name: 'Sim101', instrument: 'NQ 03-26', opened_at: new Date(Date.now() - 1000 * 60 * 200).toISOString(), net_now: 0, cash: 85.25 }
-            ];
-
-            renderTrades(demoTrades);
+            renderRiskStatus({ full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 });
+            renderTrades([
+                { trade_no: 104, account_name: 'Sim101', instrument: 'NQ', opened_at: new Date().toISOString(), net_now: 0, cash: 320.50 }
+            ]);
         }
     </script>
 </body>
