@@ -89,11 +89,11 @@
                     </button>
                 </nav>
 
-                <!-- CLOCK WIDGET -->
+                <!-- CLOCK WIDGET WITH BREAK DETECTION -->
                 <div class="hidden lg:flex items-center gap-2 bg-slate-900 border border-slate-800/80 px-3 py-1.5 rounded-xl font-mono text-xs">
-                    <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                    <span id="sessionStatusDot" class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
                     <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
-                    <span class="text-slate-400">Futures close</span>
+                    <span id="sessionLabel" class="text-slate-400">Futures close</span>
                     <span id="sessionCountdown" class="text-cyan-400 font-bold">00:00:00</span>
                 </div>
 
@@ -138,7 +138,7 @@
                     </div>
                     <div>
                         <div class="flex items-center gap-2">
-                            <h3 class="text-sm font-bold text-white">Защита от тильта и сессий.</h3>
+                            <h3 class="text-sm font-bold text-white">Защита от тильта и сессий</h3>
                             <span id="tiltTimerBadge" class="hidden px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
                                 00:00:00
                             </span>
@@ -315,22 +315,51 @@
             lucide.createIcons();
         }
 
+        // ЧАСЫ В ШАПКЕ С УЧЕТОМ ТЕХПЕРЕРЫВА CME (16:00 - 17:00 CT)
         function startSessionClock() {
             setInterval(() => {
                 const now = new Date();
                 const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
                 const ctDate = new Date(ctStr);
-                const closeTime = new Date(ctDate);
-                closeTime.setHours(16, 0, 0, 0);
-                if (ctDate > closeTime) closeTime.setDate(closeTime.getDate() + 1);
-                
-                const diff = closeTime - ctDate;
-                const hours = String(Math.floor((diff / (1000 * 60 * 60)) % 24)).padStart(2, '0');
-                const minutes = String(Math.floor((diff / (1000 * 60)) % 60)).padStart(2, '0');
-                const seconds = String(Math.floor((diff / 1000) % 60)).padStart(2, '0');
-                
-                const el = document.getElementById('sessionCountdown');
-                if (el) el.innerText = `${hours}:${minutes}:${seconds}`;
+                const currentHour = ctDate.getHours();
+
+                const labelEl = document.getElementById('sessionLabel');
+                const timerEl = document.getElementById('sessionCountdown');
+                const dotEl = document.getElementById('sessionStatusDot');
+
+                if (currentHour === 16) {
+                    // Перерыв CME (16:00 - 17:00 CT)
+                    const openTime = new Date(ctDate);
+                    openTime.setHours(17, 0, 0, 0);
+                    const diff = openTime - ctDate;
+
+                    const m = String(Math.floor((diff / (1000 * 60)) % 60)).padStart(2, '0');
+                    const s = String(Math.floor((diff / 1000) % 60)).padStart(2, '0');
+
+                    if (labelEl) labelEl.innerText = "Торги закрыты (перерыв)";
+                    if (timerEl) {
+                        timerEl.innerText = `00:${m}:${s}`;
+                        timerEl.className = "text-amber-400 font-bold";
+                    }
+                    if (dotEl) dotEl.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+                } else {
+                    // Обычная торговая сессия (до 16:00 CT)
+                    const closeTime = new Date(ctDate);
+                    closeTime.setHours(16, 0, 0, 0);
+                    if (currentHour >= 17) closeTime.setDate(closeTime.getDate() + 1);
+
+                    const diff = closeTime - ctDate;
+                    const h = String(Math.floor((diff / (1000 * 60 * 60)) % 24)).padStart(2, '0');
+                    const m = String(Math.floor((diff / (1000 * 60)) % 60)).padStart(2, '0');
+                    const s = String(Math.floor((diff / 1000) % 60)).padStart(2, '0');
+
+                    if (labelEl) labelEl.innerText = "Futures close";
+                    if (timerEl) {
+                        timerEl.innerText = `${h}:${m}:${s}`;
+                        timerEl.className = "text-cyan-400 font-bold";
+                    }
+                    if (dotEl) dotEl.className = "w-2 h-2 rounded-full bg-cyan-400 animate-pulse";
+                }
             }, 1000);
         }
 
@@ -517,7 +546,8 @@
             else if (state === 'demo') { dot.className = "w-1.5 h-1.5 rounded-full bg-indigo-400"; text.innerText = "Демо режим"; }
             else { dot.className = "w-1.5 h-1.5 rounded-full bg-rose-500"; text.innerText = "Ошибка сети"; }
         }
-function renderRiskStatus(risk) {
+
+        function renderRiskStatus(risk) {
             if (!risk) risk = { full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 };
 
             currentLimitType = risk.limit_type || '';
@@ -556,7 +586,7 @@ function renderRiskStatus(risk) {
                 subText.className = "text-[11px] text-slate-400";
             }
 
-            // ЛОГИКА ТАЙМЕРА: показывает обратный отсчет ПРИ ЛЮБОЙ БЛОКИРОВКЕ (full_stop или limit_type)
+            // РАСЧЕТ ТАЙМЕРА ДЛЯ ПАНЕЛИ
             if (risk.full_stop || currentLimitType) {
                 tiltBadge.classList.remove('hidden');
                 
@@ -564,8 +594,12 @@ function renderRiskStatus(risk) {
                     const now = new Date();
                     let target = null;
                     
-                    if (risk.unlock_at) {
-                        target = new Date(risk.unlock_at);
+                    // Если сработал системный лимит (loss / profit) — ПРИНУДИТЕЛЬНО считаем до окончания торгового дня (16:00/17:00 CT)
+                    if (currentLimitType === 'loss' || currentLimitType === 'profit') {
+                        const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
+                        target = new Date(ctStr);
+                        target.setHours(16, 0, 0, 0);
+                        if (new Date(ctStr) > target) target.setDate(target.getDate() + 1);
                     } else if (currentLimitType === 'manual_1h') {
                         let lockTimeStr = localStorage.getItem('sim_lock_time') || new Date().toISOString();
                         target = new Date(new Date(lockTimeStr).getTime() + 60 * 60 * 1000);
@@ -573,14 +607,14 @@ function renderRiskStatus(risk) {
                         const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
                         target = new Date(ctStr);
                         target.setHours(24, 0, 0, 0);
+                    } else if (risk.unlock_at) {
+                        target = new Date(risk.unlock_at);
                     } else {
-                        // Привязываем таймер ровно к закрытию сессии (16:00 CT), как и верхний счетчик
                         const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
                         target = new Date(ctStr);
                         target.setHours(16, 0, 0, 0);
                         if (new Date(ctStr) > target) target.setDate(target.getDate() + 1);
                     }
-					
 
                     if (target) {
                         const diffMs = target - now;
@@ -659,6 +693,7 @@ function renderRiskStatus(risk) {
             }
             lucide.createIcons();
         }
+
         function renderTrades(trades) {
             const tbody = document.getElementById('tradesTableBody');
             const mobileList = document.getElementById('tradesMobileList');
