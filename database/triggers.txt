@@ -1,0 +1,65 @@
+[
+  {
+    "schema_name": "public",
+    "trigger_name": "risk_control_guard",
+    "table_name": "risk_control",
+    "function_name": "guard_limits",
+    "function_definition": "CREATE OR REPLACE FUNCTION public.guard_limits()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nbegin\r\n  if old.full_stop\r\n     and (new.loss_limit   is distinct from old.loss_limit\r\n       or new.profit_limit is distinct from old.profit_limit) then\r\n    raise exception 'Лимиты заблокированы до конца торговой сессии (17:00 CT)';\r\n  end if;\r\n  return new;\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema_name": "public",
+    "trigger_name": "risk_control_notify",
+    "table_name": "risk_control",
+    "function_name": "trg_notify_stop",
+    "function_definition": "CREATE OR REPLACE FUNCTION public.trg_notify_stop()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nbegin\r\n  if new.full_stop and not coalesce(old.full_stop, false) then\r\n    perform public.notify_telegram(\r\n      case when new.limit_type = 'profit'\r\n           then '🟢 MAX PROFIT: цель по прибыли достигнута. Торговля заблокирована до 17:00 CT.'\r\n           else '🔴 MAX LOSS: достигнут лимит убытка. Торговля заблокирована до 17:00 CT.' end);\r\n  elsif not new.full_stop and coalesce(old.full_stop, false) then\r\n    perform public.notify_telegram('✅ Блокировка снята. Новый торговый день.');\r\n  end if;\r\n  return null;\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema_name": "public",
+    "trigger_name": "risk_control_recalc",
+    "table_name": "risk_control",
+    "function_name": "trg_recalc_risk",
+    "function_definition": "CREATE OR REPLACE FUNCTION public.trg_recalc_risk()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nbegin\r\n  if pg_trigger_depth() > 1 then return null; end if;\r\n  perform public.recalc_risk();\r\n  return null;\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema_name": "public",
+    "trigger_name": "trades_0_reject_sim",
+    "table_name": "trades",
+    "function_name": "reject_sim_trades",
+    "function_definition": "CREATE OR REPLACE FUNCTION public.reject_sim_trades()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nbegin\r\n  if new.account_name ~* '^sim[0-9]+$' then return null; end if;\r\n  return new;\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema_name": "public",
+    "trigger_name": "trades_assign_no",
+    "table_name": "trades",
+    "function_name": "assign_trade_no",
+    "function_definition": "CREATE OR REPLACE FUNCTION public.assign_trade_no()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  prev record;\r\n  g    bigint;\r\nbegin\r\n  if new.instrument is null then return new; end if;\r\n\r\n  -- защита от одновременных вставок по одной паре\r\n  perform pg_advisory_xact_lock(hashtext(new.account_name || '|' || new.instrument));\r\n\r\n  select net_after, trade_no, group_no into prev\r\n  from public.trades\r\n  where account_name = new.account_name\r\n    and instrument   = new.instrument\r\n    and net_after is not null\r\n  order by id desc\r\n  limit 1;\r\n\r\n  new.net_after := coalesce(prev.net_after, 0) + new.side * new.qty;\r\n\r\n  if prev.trade_no is null or prev.net_after = 0 then\r\n    -- новая сделка\r\n    new.is_open  := true;\r\n    new.trade_no := nextval('public.trade_no_seq');\r\n\r\n    -- есть ли копия: такой же вход на другом счёте за последние 10 секунд\r\n    select group_no into g\r\n    from public.trades\r\n    where is_open\r\n      and instrument   = new.instrument\r\n      and side         = new.side\r\n      and account_name <> new.account_name\r\n      and created_at   > now() - interval '10 seconds'\r\n    order by id desc\r\n    limit 1;\r\n\r\n    new.group_no := coalesce(g, nextval('public.group_no_seq'));\r\n  else\r\n    -- продолжение той же сделки (добавление или частичный выход)\r\n    new.is_open  := false;\r\n    new.trade_no := prev.trade_no;\r\n    new.group_no := prev.group_no;\r\n  end if;\r\n\r\n  return new;\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema_name": "public",
+    "trigger_name": "trades_no_truncate",
+    "table_name": "trades",
+    "function_name": "protect_trades_truncate",
+    "function_definition": "CREATE OR REPLACE FUNCTION public.protect_trades_truncate()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nbegin\r\n  raise exception 'TRUNCATE по trades запрещён';\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema_name": "public",
+    "trigger_name": "trades_notify",
+    "table_name": "trades",
+    "function_name": "trg_notify_trade",
+    "function_definition": "CREATE OR REPLACE FUNCTION public.trg_notify_trade()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_first    boolean;\r\n  v_open_cnt int;\r\n  v_pnl      numeric;\r\n  v_accounts int;\r\n  v_n        int;\r\n  v_qty      int;\r\n  v_secs     int;\r\nbegin\r\n  if new.group_no is null then return null; end if;\r\n\r\n  -- номер сделки за торговый день (по группам копирования)\r\n  select count(distinct group_no) into v_n\r\n  from public.trades\r\n  where group_no <= new.group_no\r\n    and ((created_at at time zone 'America/Chicago') + interval '7 hours')::date\r\n      = ((now() at time zone 'America/Chicago') + interval '7 hours')::date;\r\n\r\n  -- ВХОД: сообщение только от первой записи группы\r\n  if new.is_open then\r\n    select not exists (\r\n      select 1 from public.trades where group_no = new.group_no and id < new.id\r\n    ) into v_first;\r\n\r\n    if v_first then\r\n      perform public.notify_telegram(\r\n        '▶️ Сделка (' || v_n || ') открыта: '\r\n        || case when new.side = 1 then 'BUY ' else 'SELL ' end\r\n        || new.instrument || ' @ ' || new.price\r\n        || ' (счёт ' || new.account_name || ')');\r\n    end if;\r\n  end if;\r\n\r\n  -- ВЫХОД: когда закрылся последний счёт группы\r\n  if new.net_after = 0 then\r\n    select count(*) into v_open_cnt\r\n    from (\r\n      select distinct on (trade_no) trade_no, net_after\r\n      from public.trades\r\n      where group_no = new.group_no\r\n      order by trade_no, id desc\r\n    ) t\r\n    where net_after <> 0;\r\n\r\n    if v_open_cnt = 0 then\r\n      select sum(-side * qty * price * point_value - coalesce(commission, 0)),\r\n             count(distinct account_name),\r\n             extract(epoch from (max(created_at) - min(created_at)))::int\r\n        into v_pnl, v_accounts, v_secs\r\n      from public.trades where group_no = new.group_no;\r\n\r\n      select max(abs(net_after)) into v_qty\r\n      from public.trades where trade_no = new.trade_no;\r\n\r\n      perform public.notify_telegram(\r\n        case when v_pnl >= 0 then '✅' else '🔻' end\r\n        || ' Сделка (' || v_n || ') закрыта: ' || new.instrument\r\n        || ', контрактов: ' || v_qty\r\n        || ', длилась ' || (v_secs / 60) || ' мин ' || (v_secs % 60) || ' с'\r\n        || ', результат ' || to_char(v_pnl, 'FM999990.00') || '$ (счетов: ' || v_accounts || ')');\r\n    end if;\r\n  end if;\r\n\r\n  return null;\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema_name": "public",
+    "trigger_name": "trades_protect",
+    "table_name": "trades",
+    "function_name": "protect_trades",
+    "function_definition": "CREATE OR REPLACE FUNCTION public.protect_trades()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nbegin\r\n  if not public.is_playback_account(old.account_name) then\r\n    raise exception 'Настоящие сделки нельзя менять или удалять';\r\n  end if;\r\n  if tg_op = 'DELETE' then return old; end if;\r\n  return new;\r\nend;\r\n$function$\n"
+  },
+  {
+    "schema_name": "public",
+    "trigger_name": "trades_recalc",
+    "table_name": "trades",
+    "function_name": "trg_recalc_risk",
+    "function_definition": "CREATE OR REPLACE FUNCTION public.trg_recalc_risk()\n RETURNS trigger\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\nbegin\r\n  if pg_trigger_depth() > 1 then return null; end if;\r\n  perform public.recalc_risk();\r\n  return null;\r\nend;\r\n$function$\n"
+  }
+]

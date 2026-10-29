@@ -1,7 +1,25 @@
--- WARNING: This schema is for context only and is not meant to be run.
--- Table order and constraints may not be valid for execution.
+-- =========================================================================
+-- Trading Risk & Performance Dashboard - Complete Supabase Schema
+-- =========================================================================
 
-CREATE TABLE public.trades (
+-- 0. Создание необходимых последовательностей (Sequences)
+CREATE SEQUENCE IF NOT EXISTS public.trade_no_seq START WITH 1 INCREMENT BY 1;
+CREATE SEQUENCE IF NOT EXISTS public.group_no_seq START WITH 1 INCREMENT BY 1;
+
+-- 1. Таблица состояния риск-менеджера
+CREATE TABLE IF NOT EXISTS public.risk_control (
+  id integer NOT NULL,
+  full_stop boolean DEFAULT false,
+  limit_type text DEFAULT ''::text,
+  loss_limit numeric NOT NULL DEFAULT '-1000'::integer,
+  profit_limit numeric NOT NULL DEFAULT 1000,
+  playback_mode boolean NOT NULL DEFAULT false,
+  playback_mode_at timestamp with time zone,
+  CONSTRAINT risk_control_pkey PRIMARY KEY (id)
+);
+
+-- 2. Таблица регистрации сделок
+CREATE TABLE IF NOT EXISTS public.trades (
   id bigint GENERATED ALWAYS AS IDENTITY NOT NULL,
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   account_name text,
@@ -19,13 +37,294 @@ CREATE TABLE public.trades (
   group_no bigint,
   CONSTRAINT trades_pkey PRIMARY KEY (id)
 );
-CREATE TABLE public.risk_control (
-  id integer NOT NULL,
-  full_stop boolean DEFAULT false,
-  limit_type text DEFAULT ''::text,
-  loss_limit numeric NOT NULL DEFAULT '-1000'::integer,
-  profit_limit numeric NOT NULL DEFAULT 1000,
-  playback_mode boolean NOT NULL DEFAULT false,
-  playback_mode_at timestamp with time zone,
-  CONSTRAINT risk_control_pkey PRIMARY KEY (id)
-);
+
+-- =========================================================================
+-- ФУНКЦИИ И ТРИГГЕРЫ
+-- =========================================================================
+
+-- Функция и триггер: guard_limits (risk_control)
+CREATE OR REPLACE FUNCTION public.guard_limits()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if old.full_stop
+     and (new.loss_limit   is distinct from old.loss_limit
+       or new.profit_limit is distinct from old.profit_limit) then
+    raise exception 'Лимиты заблокированы до конца торговой сессии (17:00 CT)';
+  end if;
+  return new;
+end;
+$function$;
+
+DROP TRIGGER IF EXISTS risk_control_guard ON public.risk_control;
+CREATE TRIGGER risk_control_guard
+  BEFORE UPDATE ON public.risk_control
+  FOR EACH ROW EXECUTE FUNCTION public.guard_limits();
+
+
+-- Функция и триггер: trg_notify_stop (risk_control)
+CREATE OR REPLACE FUNCTION public.trg_notify_stop()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if new.full_stop and not coalesce(old.full_stop, false) then
+    perform public.notify_telegram(
+      case when new.limit_type = 'profit'
+           then '🟢 MAX PROFIT: цель по прибыли достигнута. Торговля заблокирована до 17:00 CT.'
+           else '🔴 MAX LOSS: достигнут лимит убытка. Торговля заблокирована до 17:00 CT.' end);
+  elsif not new.full_stop and coalesce(old.full_stop, false) then
+    perform public.notify_telegram('✅ Блокировка снята. Новый торговый день.');
+  end if;
+  return null;
+end;
+$function$;
+
+DROP TRIGGER IF EXISTS risk_control_notify ON public.risk_control;
+CREATE TRIGGER risk_control_notify
+  AFTER UPDATE ON public.risk_control
+  FOR EACH ROW EXECUTE FUNCTION public.trg_notify_stop();
+
+
+-- Функция и триггеры для пересчета рисков
+CREATE OR REPLACE FUNCTION public.trg_recalc_risk()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if pg_trigger_depth() > 1 then return null; end if;
+  perform public.recalc_risk();
+  return null;
+end;
+$function$;
+
+DROP TRIGGER IF EXISTS risk_control_recalc ON public.risk_control;
+CREATE TRIGGER risk_control_recalc
+  AFTER INSERT OR UPDATE OR DELETE ON public.risk_control
+  FOR EACH ROW EXECUTE FUNCTION public.trg_recalc_risk();
+
+DROP TRIGGER IF EXISTS trades_recalc ON public.trades;
+CREATE TRIGGER trades_recalc
+  AFTER INSERT OR UPDATE OR DELETE ON public.trades
+  FOR EACH ROW EXECUTE FUNCTION public.trg_recalc_risk();
+
+
+-- Функция и триггер: reject_sim_trades (trades)
+CREATE OR REPLACE FUNCTION public.reject_sim_trades()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if new.account_name ~* '^sim[0-9]+$' then return null; end if;
+  return new;
+end;
+$function$;
+
+DROP TRIGGER IF EXISTS trades_0_reject_sim ON public.trades;
+CREATE TRIGGER trades_0_reject_sim
+  BEFORE INSERT ON public.trades
+  FOR EACH ROW EXECUTE FUNCTION public.reject_sim_trades();
+
+
+-- Функция и триггер: assign_trade_no (trades)
+CREATE OR REPLACE FUNCTION public.assign_trade_no()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  prev record;
+  g    bigint;
+begin
+  if new.instrument is null then return new; end if;
+
+  -- защита от одновременных вставок по одной паре
+  perform pg_advisory_xact_lock(hashtext(new.account_name || '|' || new.instrument));
+
+  select net_after, trade_no, group_no into prev
+  from public.trades
+  where account_name = new.account_name
+    and instrument   = new.instrument
+    and net_after is not null
+  order by id desc
+  limit 1;
+
+  new.net_after := coalesce(prev.net_after, 0) + new.side * new.qty;
+
+  if prev.trade_no is null or prev.net_after = 0 then
+    -- новая сделка
+    new.is_open  := true;
+    new.trade_no := nextval('public.trade_no_seq');
+
+    -- есть ли копия: такой же вход на другом счёте за последние 10 секунд
+    select group_no into g
+    from public.trades
+    where is_open
+      and instrument   = new.instrument
+      and side         = new.side
+      and account_name <> new.account_name
+      and created_at   > now() - interval '10 seconds'
+    order by id desc
+    limit 1;
+
+    new.group_no := coalesce(g, nextval('public.group_no_seq'));
+  else
+    -- продолжение той же сделки (добавление или частичный выход)
+    new.is_open  := false;
+    new.trade_no := prev.trade_no;
+    new.group_no := prev.group_no;
+  end if;
+
+  return new;
+end;
+$function$;
+
+DROP TRIGGER IF EXISTS trades_assign_no ON public.trades;
+CREATE TRIGGER trades_assign_no
+  BEFORE INSERT ON public.trades
+  FOR EACH ROW EXECUTE FUNCTION public.assign_trade_no();
+
+
+-- Функция и триггер: protect_trades_truncate (trades)
+CREATE OR REPLACE FUNCTION public.protect_trades_truncate()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  raise exception 'TRUNCATE по trades запрещён';
+end;
+$function$;
+
+DROP TRIGGER IF EXISTS trades_no_truncate ON public.trades;
+CREATE TRIGGER trades_no_truncate
+  BEFORE TRUNCATE ON public.trades
+  FOR EACH STATEMENT EXECUTE FUNCTION public.protect_trades_truncate();
+
+
+-- Функция и триггер: trg_notify_trade (trades)
+CREATE OR REPLACE FUNCTION public.trg_notify_trade()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_first    boolean;
+  v_open_cnt int;
+  v_pnl      numeric;
+  v_accounts int;
+  v_n        int;
+  v_qty      int;
+  v_secs     int;
+begin
+  if new.group_no is null then return null; end if;
+
+  -- номер сделки за торговый день (по группам копирования)
+  select count(distinct group_no) into v_n
+  from public.trades
+  where group_no <= new.group_no
+    and ((created_at at time zone 'America/Chicago') + interval '7 hours')::date
+      = ((now() at time zone 'America/Chicago') + interval '7 hours')::date;
+
+  -- ВХОД: сообщение только от первой записи группы
+  if new.is_open then
+    select not exists (
+      select 1 from public.trades where group_no = new.group_no and id < new.id
+    ) into v_first;
+
+    if v_first then
+      perform public.notify_telegram(
+        '▶️ Сделка (' || v_n || ') открыта: '
+        || case when new.side = 1 then 'BUY ' else 'SELL ' end
+        || new.instrument || ' @ ' || new.price
+        || ' (счёт ' || new.account_name || ')');
+    end if;
+  end if;
+
+  -- ВЫХОД: когда закрылся последний счёт группы
+  if new.net_after = 0 then
+    select count(*) into v_open_cnt
+    from (
+      select distinct on (trade_no) trade_no, net_after
+      from public.trades
+      where group_no = new.group_no
+      order by trade_no, id desc
+    ) t
+    where net_after <> 0;
+
+    if v_open_cnt = 0 then
+      select sum(-side * qty * price * point_value - coalesce(commission, 0)),
+             count(distinct account_name),
+             extract(epoch from (max(created_at) - min(created_at)))::int
+        into v_pnl, v_accounts, v_secs
+      from public.trades where group_no = new.group_no;
+
+      select max(abs(net_after)) into v_qty
+      from public.trades where trade_no = new.trade_no;
+
+      perform public.notify_telegram(
+        case when v_pnl >= 0 then '✅' else '🔻' end
+        || ' Сделка (' || v_n || ') закрыта: ' || new.instrument
+        || ', контрактов: ' || v_qty
+        || ', длилась ' || (v_secs / 60) || ' мин ' || (v_secs % 60) || ' с'
+        || ', результат ' || to_char(v_pnl, 'FM999990.00') || '$ (счетов: ' || v_accounts || ')');
+    end if;
+  end if;
+
+  return null;
+end;
+$function$;
+
+DROP TRIGGER IF EXISTS trades_notify ON public.trades;
+CREATE TRIGGER trades_notify
+  AFTER INSERT ON public.trades
+  FOR EACH ROW EXECUTE FUNCTION public.trg_notify_trade();
+
+
+-- Функция и триггер: protect_trades (trades)
+CREATE OR REPLACE FUNCTION public.protect_trades()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+begin
+  if not public.is_playback_account(old.account_name) then
+    raise exception 'Настоящие сделки нельзя менять или удалять';
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end;
+$function$;
+
+DROP TRIGGER IF EXISTS trades_protect ON public.trades;
+CREATE TRIGGER trades_protect
+  BEFORE UPDATE OR DELETE ON public.trades
+  FOR EACH ROW EXECUTE FUNCTION public.protect_trades();
+
+
+-- =========================================================================
+-- ПРЕДСТАВЛЕНИЯ (VIEWS)
+-- =========================================================================
+
+CREATE OR REPLACE VIEW public.trade_summary AS
+SELECT 
+  id,
+  created_at AS opened_at,
+  account_name,
+  instrument,
+  side,
+  qty,
+  price,
+  point_value,
+  commission,
+  net_after,
+  trade_no,
+  group_no,
+  (-1 * side * qty * price * point_value - COALESCE(commission, 0)) AS cash,
+  COALESCE(net_after, 0) AS net_now
+FROM public.trades;
