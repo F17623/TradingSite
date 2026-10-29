@@ -352,8 +352,34 @@
             closeConfirmModal();
             await updateRiskStateInDB(true, type);
         }
+async function updateRiskStateInDB(fullStop, limitType) {
+    updateSyncStatus('syncing');
+    if (isDemoMode || !supabaseClient) {
+        updateSyncStatus('demo');
+        return;
+    }
 
-        async function updateRiskStateInDB(fullStop, limitType) {
+    try {
+        // Пишем в тестовую таблицу, чтобы проверить связь и отсутствие триггеров
+        const { error } = await supabaseClient
+            .from('test_buttons')
+            .update({ 
+                status_text: `Режим: ${limitType || 'allow'} (stop: ${fullStop})`,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', 1);
+
+        if (error) throw error;
+        
+        console.Hog ? '' : console.log("Успешно записано в test_buttons!");
+        updateSyncStatus('success');
+    } catch (err) {
+        console.error('Ошибка записи в тестовую таблицу:', err);
+        updateSyncStatus('error');
+        alert('Ошибка записи: ' + err.message);
+    }
+}
+        async function _updateRiskStateInDB(fullStop, limitType) {
             updateSyncStatus('syncing');
             if (isDemoMode || !supabaseClient) {
                 // Демо-режим симуляция
