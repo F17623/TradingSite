@@ -517,8 +517,7 @@
             else if (state === 'demo') { dot.className = "w-1.5 h-1.5 rounded-full bg-indigo-400"; text.innerText = "Демо режим"; }
             else { dot.className = "w-1.5 h-1.5 rounded-full bg-rose-500"; text.innerText = "Ошибка сети"; }
         }
-
-        function renderRiskStatus(risk) {
+function renderRiskStatus(risk) {
             if (!risk) risk = { full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 };
 
             currentLimitType = risk.limit_type || '';
@@ -544,56 +543,61 @@
                 tiltPanelTimer = null;
             }
 
+            // Блокировка кнопок при системных лимитах (loss / profit)
             if (currentLimitType === 'loss' || currentLimitType === 'profit') {
                 buttonsContainer.style.opacity = '0.4';
                 buttonsContainer.style.pointerEvents = 'none';
                 subText.innerText = `🔒 Заблокировано системой (${currentLimitType.toUpperCase()} LIMIT)`;
                 subText.className = "text-[11px] text-rose-400 font-bold";
-                tiltBadge.classList.add('hidden');
             } else {
                 buttonsContainer.style.opacity = '1';
                 buttonsContainer.style.pointerEvents = 'auto';
-                
-                if (currentLimitType === 'manual_1h' || currentLimitType === 'asia') {
-                    tiltBadge.classList.remove('hidden');
-                    
-                    tiltPanelTimer = setInterval(() => {
-                        const now = new Date();
-                        let target = null;
-                        
-                        if (risk.unlock_at) {
-                            target = new Date(risk.unlock_at);
-                        } else if (currentLimitType === 'manual_1h') {
-                            let lockTimeStr = localStorage.getItem('sim_lock_time') || new Date().toISOString();
-                            target = new Date(new Date(lockTimeStr).getTime() + 60 * 60 * 1000);
-                        } else if (currentLimitType === 'asia') {
-                            const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
-                            target = new Date(ctStr);
-                            target.setHours(24, 0, 0, 0);
-                        }
+                subText.innerText = "Управление режимами в risk_control";
+                subText.className = "text-[11px] text-slate-400";
+            }
 
-                        if (target) {
-                            const diffMs = target - now;
-                            if (diffMs <= 0) {
-                                tiltBadge.innerText = "00:00:00";
-                                subText.innerText = "Блокировка завершена";
-                                subText.className = "text-[11px] text-emerald-400 font-bold";
-                                clearInterval(tiltPanelTimer);
-                            } else {
-                                const h = String(Math.floor((diffMs / (1000 * 60 * 60)) % 24)).padStart(2, '0');
-                                const m = String(Math.floor((diffMs / (1000 * 60)) % 60)).padStart(2, '0');
-                                const s = String(Math.floor((diffMs / 1000) % 60)).padStart(2, '0');
-                                tiltBadge.innerText = `${h}:${m}:${s}`;
-                                subText.innerText = `Блокировка активна. Разблокировка через ${m}м ${s}с`;
-                                subText.className = "text-[11px] text-amber-400 font-semibold";
-                            }
+            // ЛОГИКА ТАЙМЕРА: показывает обратный отсчет ПРИ ЛЮБОЙ БЛОКИРОВКЕ (full_stop или limit_type)
+            if (risk.full_stop || currentLimitType) {
+                tiltBadge.classList.remove('hidden');
+                
+                tiltPanelTimer = setInterval(() => {
+                    const now = new Date();
+                    let target = null;
+                    
+                    if (risk.unlock_at) {
+                        target = new Date(risk.unlock_at);
+                    } else if (currentLimitType === 'manual_1h') {
+                        let lockTimeStr = localStorage.getItem('sim_lock_time') || new Date().toISOString();
+                        target = new Date(new Date(lockTimeStr).getTime() + 60 * 60 * 1000);
+                    } else if (currentLimitType === 'asia') {
+                        const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
+                        target = new Date(ctStr);
+                        target.setHours(24, 0, 0, 0);
+                    } else {
+                        // Для LOSS LIMIT, PROFIT LIMIT или обычного SESSION STOP считаем до конца сессии (16:00/17:00 CT)
+                        const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
+                        target = new Date(ctStr);
+                        target.setHours(16, 0, 0, 0);
+                        if (new Date(ctStr) > target) target.setDate(target.getDate() + 1);
+                    }
+
+                    if (target) {
+                        const diffMs = target - now;
+                        if (diffMs <= 0) {
+                            tiltBadge.innerText = "00:00:00";
+                            tiltBadge.className = "px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+                            clearInterval(tiltPanelTimer);
+                        } else {
+                            const h = String(Math.floor((diffMs / (1000 * 60 * 60)) % 24)).padStart(2, '0');
+                            const m = String(Math.floor((diffMs / (1000 * 60)) % 60)).padStart(2, '0');
+                            const s = String(Math.floor((diffMs / 1000) % 60)).padStart(2, '0');
+                            tiltBadge.innerText = `${h}:${m}:${s}`;
+                            tiltBadge.className = "px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30";
                         }
-                    }, 1000);
-                } else {
-                    tiltBadge.classList.add('hidden');
-                    subText.innerText = "Управление режимами в risk_control";
-                    subText.className = "text-[11px] text-slate-400";
-                }
+                    }
+                }, 1000);
+            } else {
+                tiltBadge.classList.add('hidden');
             }
 
             if (countdownTimer) {
@@ -654,7 +658,6 @@
             }
             lucide.createIcons();
         }
-
         function renderTrades(trades) {
             const tbody = document.getElementById('tradesTableBody');
             const mobileList = document.getElementById('tradesMobileList');
