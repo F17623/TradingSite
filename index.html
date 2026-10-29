@@ -94,7 +94,7 @@
                     <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
                     <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
                     <span class="text-slate-400">Futures close</span>
-                    <span id="sessionCountdown" class="text-cyan-400 font-bold">02:47:52</span>
+                    <span id="sessionCountdown" class="text-cyan-400 font-bold">00:00:00</span>
                 </div>
 
                 <div class="hidden md:flex items-center space-x-2">
@@ -292,6 +292,7 @@
         let supabaseClient = null;
         let isDemoMode = false;
         let pendingActionType = null;
+        let countdownTimer = null;
 
         const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -333,7 +334,7 @@
             }, 1000);
         }
 
-        // --- LOCAL TESTING MODES VIA LOCALSTORAGE ---
+        // --- LOCAL TESTING MODES & REALTIME TIMERS ---
         function confirmAction(type, message) {
             pendingActionType = type;
             document.getElementById('confirmText').innerText = message;
@@ -351,6 +352,7 @@
 
             localStorage.setItem('sim_limit_type', type);
             localStorage.setItem('sim_full_stop', 'true');
+            localStorage.setItem('sim_lock_time', new Date().toISOString());
 
             applyLocalStateSimulation();
             alert(`Режим успешно изменен на: ${type}`);
@@ -359,6 +361,7 @@
         function resetTestingState() {
             localStorage.removeItem('sim_limit_type');
             localStorage.removeItem('sim_full_stop');
+            localStorage.removeItem('sim_lock_time');
             applyLocalStateSimulation();
             alert('Состояние сброшено: торговля разрешена.');
         }
@@ -376,6 +379,11 @@
             const statTitle = document.getElementById('statProtectionTitle');
             const statSub = document.getElementById('statProtectionSub');
 
+            if (countdownTimer) {
+                clearInterval(countdownTimer);
+                countdownTimer = null;
+            }
+
             if (!fullStop) {
                 banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-emerald-950/35 border-emerald-500/30 shadow-lg shadow-emerald-950/20";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
@@ -389,42 +397,88 @@
                     statSub.innerText = "Без кнопки сброса";
                 }
             } else {
-                if (limitType === 'asia') {
-                    banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-indigo-950/40 border-indigo-500/40 shadow-lg shadow-indigo-950/30";
-                    badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30";
-                    badge.innerText = "ASIA SESSION LOCK";
-                    title.innerText = "БЛОКИРОВКА АЗИАТСКОЙ СЕССИИ";
-                    title.className = "text-2xl font-black tracking-tight text-indigo-300 pt-1";
-                    desc.innerText = "Торговля заблокирована по расписанию ночной/азиатской сессии (17:00 - 00:00 CT).";
+                let lockTimeStr = localStorage.getItem('sim_lock_time');
+                if (!lockTimeStr) {
+                    lockTimeStr = new Date().toISOString();
+                    localStorage.setItem('sim_lock_time', lockTimeStr);
+                }
+                const lockTime = new Date(lockTimeStr).getTime();
 
-                    if (statCard) {
-                        statTitle.innerHTML = `<i data-lucide="moon" class="w-5 h-5 inline mr-1"></i><span class="text-indigo-400">БЛОК АЗИИ</span>`;
-                        statSub.innerText = "Ночное ограничение";
-                    }
-                } else if (limitType === 'manual_1h') {
+                if (limitType === 'manual_1h') {
                     banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
                     badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
                     badge.innerText = "COOLDOWN PAUSE (1H)";
                     title.innerText = "ПАУЗА ОТ ТИЛЬТА (1 ЧАС)";
                     title.className = "text-2xl font-black tracking-tight text-amber-300 pt-1";
-                    desc.innerText = "Временный тайм-аут активирован для охлаждения эмоционального состояния.";
 
                     if (statCard) {
                         statTitle.innerHTML = `<i data-lucide="timer" class="w-5 h-5 inline mr-1"></i><span class="text-amber-400">ПАУЗА 1Ч</span>`;
-                        statSub.innerText = "Охлаждение тильта";
                     }
-                } else if (limitType === 'manual_session') {
+
+                    countdownTimer = setInterval(() => {
+                        const now = Date.now();
+                        const diffSec = 3600 - Math.floor((now - lockTime) / 1000);
+                        if (diffSec <= 0) {
+                            desc.innerText = "Время паузы истекло. Вы можете разблокировать торговлю.";
+                            if (statSub) statSub.innerText = "Пауза завершена";
+                            clearInterval(countdownTimer);
+                        } else {
+                            const mins = Math.floor(diffSec / 60);
+                            const secs = diffSec % 60;
+                            desc.innerText = `Временный тайм-аут активен. До снятия блокировки осталось: ${mins} мин ${secs} сек.`;
+                            if (statSub) statSub.innerText = `Осталось: ${mins} мин ${secs} с`;
+                        }
+                    }, 1000);
+
+                } else {
                     banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-rose-950/40 border-rose-500/40 shadow-lg shadow-rose-950/30";
                     badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-subtle-pulse";
-                    badge.innerText = "SESSION STOP";
-                    title.innerText = "СТОП ДО КОНЦА ДНЯ";
+                    badge.innerText = limitType === 'asia' ? "ASIA LOCK" : "SESSION STOP";
+                    title.innerText = limitType === 'asia' ? "БЛОКИРОВКА АЗИАТСКОЙ СЕССИИ" : "ДОСТИГНУТ ЛИМИТ / СТОП";
                     title.className = "text-2xl font-black tracking-tight text-rose-400 pt-1";
-                    desc.innerText = "Принудительная остановка сессии активирована. Торговля закрыта до 17:00 CT.";
 
                     if (statCard) {
-                        statTitle.innerHTML = `<i data-lucide="stop-circle" class="w-5 h-5 inline mr-1"></i><span class="text-rose-400">СТОП СЕССИИ</span>`;
-                        statSub.innerText = "Заблокировано до 17:00";
+                        statTitle.innerHTML = limitType === 'asia' ? 
+                            `<i data-lucide="moon" class="w-5 h-5 inline mr-1"></i><span class="text-indigo-400">БЛОК АЗИИ</span>` : 
+                            `<i data-lucide="stop-circle" class="w-5 h-5 inline mr-1"></i><span class="text-rose-400">СТОП СЕССИИ</span>`;
                     }
+
+                    countdownTimer = setInterval(() => {
+                        const now = new Date();
+                        const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
+                        const ctDate = new Date(ctStr);
+                        const dayOfWeek = ctDate.getDay();
+                        
+                        let targetTime = new Date(ctDate);
+                        
+                        if ((dayOfWeek === 5 && ctDate.getHours() >= 16) || dayOfWeek === 6 || (dayOfWeek === 0 && ctDate.getHours() < 17)) {
+                            targetTime.setHours(17, 0, 0, 0);
+                            let daysToAdd = 0;
+                            if (dayOfWeek === 5) daysToAdd = 2;
+                            if (dayOfWeek === 6) daysToAdd = 1;
+                            if (dayOfWeek === 0) daysToAdd = 0;
+                            targetTime.setDate(targetTime.getDate() + daysToAdd);
+                            
+                            const diffMs = targetTime - ctDate;
+                            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                            const diffHours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
+                            const diffMins = Math.floor((diffMs / (1000 * 60)) % 60);
+
+                            desc.innerText = `Биржи закрыты на выходные. До открытия в воскресенье (17:00 CT): ${diffDays} дн. ${diffHours} ч. ${diffMins} мин.`;
+                            if (statSub) statSub.innerText = `Открытие через ${diffDays}д ${diffHours}ч`;
+                        } else {
+                            targetTime.setHours(16, 0, 0, 0);
+                            if (ctDate > targetTime) targetTime.setDate(targetTime.getDate() + 1);
+
+                            const diffMs = targetTime - ctDate;
+                            const diffHours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
+                            const diffMins = Math.floor((diffMs / (1000 * 60)) % 60);
+                            const diffSecs = Math.floor((diffMs / 1000) % 60);
+
+                            desc.innerText = `Торговля заблокирована защитой. До конца сессии осталось: ${diffHours} ч. ${diffMins} мин. ${diffSecs} сек.`;
+                            if (statSub) statSub.innerText = `Осталось: ${diffHours}ч ${diffMins}м`;
+                        }
+                    }, 1000);
                 }
             }
             lucide.createIcons();
