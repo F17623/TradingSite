@@ -149,12 +149,15 @@
 
                 <div id="controlButtonsContainer" class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto transition-opacity">
                     <!-- Asia Session Button -->
-                    <button id="btnAsia" onclick="confirmAction('asia', 'ВНИМАНИЕ: Записать блок Азиатской сессии (до 00:00 CT)?')" class="px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/20 transition-all flex items-center gap-1.5">
+                    <button id="btnAsia" onclick="confirmAction('asia', 'ВНИМАНИЕ: Заблокировать Азию (с открытия биржи до 00:00 по Ванкуверу)? Отменить нельзя.')" class="px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/20 transition-all flex items-center gap-1.5">
                         <i data-lucide="moon" class="w-3.5 h-3.5"></i> Блок Азии
                     </button>
 
                     <!-- 1 Hour Pause -->
-                    <button id="btnPause" onclick="confirmAction('manual_1h', 'Записать паузу на 1 час?')" class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-all flex items-center gap-1.5">
+                    <button id="btnDay" onclick="confirmAction('session', 'ВНИМАНИЕ: Закрыть торговлю до конца сессии (17:00 CT)? Отменить нельзя.')" class="px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold hover:bg-rose-500/20 transition-all flex items-center gap-1.5">
+                        <i data-lucide="lock" class="w-3.5 h-3.5"></i> Закрыть день
+                    </button>
+                    <button id="btnPause" onclick="confirmAction('manual_1h', 'ВНИМАНИЕ: Пауза на 1 час. Отменить нельзя.')" class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-all flex items-center gap-1.5">
                         <i data-lucide="timer" class="w-3.5 h-3.5"></i> Пауза 1 час
                     </button>
                 </div>
@@ -294,6 +297,22 @@
         let pollInterval = null;
         let currentLimitType = ''; 
 
+        // Торговый день идёт с 17:00 по Чикаго
+        function tradingDay(date) {
+            const s = date.toLocaleString('sv-SE', { timeZone: 'America/Chicago' });
+            const d = new Date(s.replace(' ', 'T') + 'Z');
+            d.setUTCHours(d.getUTCHours() + 7);
+            return d.toISOString().slice(0, 10);
+        }
+        // Секунд до ближайших 17:00 по Чикаго (когда снимается блокировка по лимиту)
+        function secondsToNextOpenCT() {
+            const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date());
+            const g = n => Number(p.find(x => x.type === n).value) % 24;
+            let sec = (17 - g('hour')) * 3600 - g('minute') * 60 - g('second');
+            if (sec <= 0) sec += 86400;
+            return sec;
+        }
+
         const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
         lucide.createIcons();
@@ -384,43 +403,22 @@
             await updateRiskStateInDB(type);
         }
 
-        async function updateRiskStateInDB(limitType) {
+        async function updateRiskStateInDB(type) {
             updateSyncStatus('syncing');
-            if (isDemoMode || !supabaseClient) {
-                updateSyncStatus('demo');
-                return;
-            }
-
+            if (isDemoMode || !supabaseClient) { updateSyncStatus('demo'); return; }
             try {
-                let unlockAt = null;
-                const now = new Date();
-
-                if (limitType === 'manual_1h') {
-                    unlockAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
-                    localStorage.setItem('sim_lock_time', now.toISOString());
-                } else if (limitType === 'asia') {
-                    const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
-                    const ctDate = new Date(ctStr);
-                    ctDate.setHours(24, 0, 0, 0);
-                    unlockAt = ctDate.toISOString();
-                }
-
-                const { error } = await supabaseClient
-                    .from('risk_control')
-                    .update({ 
-                        limit_type: limitType,
-                        unlock_at: unlockAt
-                    })
-                    .eq('id', 1);
-
-                if (error) throw error;
-                
+                let res;
+                if (type === 'manual_1h') res = await supabaseClient.rpc('lock_break', { p_minutes: 60 });
+                else if (type === 'session') res = await supabaseClient.rpc('lock_day');
+                else if (type === 'asia') res = await supabaseClient.rpc('lock_asia');
+                else return;
+                if (res.error) throw res.error;
                 await fetchData();
                 updateSyncStatus('success');
             } catch (err) {
-                console.error('Ошибка записи в risk_control:', err);
+                console.error('Ошибка блокировки:', err);
                 updateSyncStatus('error');
-                alert('Ошибка записи в БД: ' + err.message);
+                alert('Ошибка: ' + err.message);
             }
         }
 
@@ -526,8 +524,16 @@
                     .gte('opened_at', since)
                     .order('opened_at', { ascending: false });
 
+                // Только текущий торговый день (с 17:00 CT) и только нужный режим: настоящие счета или Playback
+                const pb = !!riskData.playback_mode && !!riskData.playback_mode_at &&
+                           (Date.now() - new Date(riskData.playback_mode_at).getTime()) < 180000;
+                const today = tradingDay(new Date());
+                const rows = (tradesData || []).filter(t => t.opened_at &&
+                    tradingDay(new Date(t.opened_at)) === today &&
+                    String(t.account_name || '').toLowerCase().startsWith('playback') === pb);
+
                 renderRiskStatus(riskData);
-                renderTrades(tradesData || []);
+                renderTrades(rows);
                 updateSyncStatus('success');
             } catch (err) {
                 console.error('Ошибка чтения из базы:', err);
@@ -582,44 +588,44 @@
             } else {
                 buttonsContainer.style.opacity = '1';
                 buttonsContainer.style.pointerEvents = 'auto';
-                subText.innerText = "Управление режимами в risk_control";
+                const maxT = Number(risk.max_trades || 0), nT = Number(risk.stat_trades || 0), pk = Number(risk.stat_peak || 0);
+                let st = "Управление режимами в risk_control";
+                if (maxT) {
+                    st = `Сделок сегодня: ${nT} из ${maxT} · пик дня ${pk >= 0 ? '+$' : '-$'}${Math.abs(pk).toFixed(0)}`;
+                    const startAt = Number(risk.trail_start_pct || 0.5) * Number(risk.profit_limit || 1000);
+                    if (pk >= startAt) st += ` · защита прибыли на +$${(pk * (1 - Number(risk.trail_giveback_pct || 0.3))).toFixed(0)}`;
+                }
+                subText.innerText = st;
                 subText.className = "text-[11px] text-slate-400";
             }
 
             // СИНХРОНИЗИРОВАННЫЙ РАСЧЕТ ТАЙМЕРА ДЛЯ ПАНЕЛИ
             if (risk.full_stop || currentLimitType) {
                 tiltBadge.classList.remove('hidden');
-                
-                tiltPanelTimer = setInterval(() => {
-                    const now = new Date();
-                    const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
-                    const ctDate = new Date(ctStr);
-                    const currentHour = ctDate.getHours();
-
-                    let target = new Date(ctDate);
-
-                    if (currentHour === 16) {
-                        // Если идет техперерыв CME (16:00 - 17:00 CT), целимся на 17:00 CT (открытие)
-                        target.setHours(17, 0, 0, 0);
+                // Таймер до снятия блокировки: ручные по unlock_at / концу Азии, лимит до 17:00 CT
+                const tick = () => {
+                    let sec;
+                    if (currentLimitType === 'break' || currentLimitType === 'session') {
+                        sec = risk.unlock_at ? Math.floor((new Date(risk.unlock_at).getTime() - Date.now()) / 1000) : 0;
+                    } else if (currentLimitType === 'asia') {
+                        sec = risk.asia_until ? Math.floor((new Date(risk.asia_until).getTime() - Date.now()) / 1000) : 0;
                     } else {
-                        // Иначе целимся на закрытие сессии в 16:00 CT
-                        target.setHours(16, 0, 0, 0);
-                        if (ctDate > target) target.setDate(target.getDate() + 1);
+                        sec = secondsToNextOpenCT();
                     }
-
-                    const diffMs = target - now;
-                    if (diffMs <= 0) {
+                    if (sec <= 0) {
                         tiltBadge.innerText = "00:00:00";
                         tiltBadge.className = "px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
-                        clearInterval(tiltPanelTimer);
-                    } else {
-                        const h = String(Math.floor((diffMs / (1000 * 60 * 60)) % 24)).padStart(2, '0');
-                        const m = String(Math.floor((diffMs / (1000 * 60)) % 60)).padStart(2, '0');
-                        const s = String(Math.floor((diffMs / 1000) % 60)).padStart(2, '0');
-                        tiltBadge.innerText = `${h}:${m}:${s}`;
-                        tiltBadge.className = "px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30";
+                        if (tiltPanelTimer) { clearInterval(tiltPanelTimer); tiltPanelTimer = null; }
+                        return;
                     }
-                }, 1000);
+                    const hh = String(Math.floor(sec / 3600)).padStart(2, '0');
+                    const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+                    const ss = String(sec % 60).padStart(2, '0');
+                    tiltBadge.innerText = `${hh}:${mm}:${ss}`;
+                    tiltBadge.className = "px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30";
+                };
+                tick();
+                tiltPanelTimer = setInterval(tick, 1000);
             } else {
                 tiltBadge.classList.add('hidden');
             }
@@ -642,7 +648,7 @@
                     statSub.innerText = "Без кнопки сброса";
                 }
             } else {
-                if (currentLimitType === 'manual_1h') {
+                if (currentLimitType === 'break') {
                     banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
                     badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
                     badge.innerText = "COOLDOWN PAUSE (1H)";
@@ -654,13 +660,30 @@
                         statTitle.innerHTML = `<i data-lucide="timer" class="w-5 h-5 inline mr-1"></i><span class="text-amber-400">ПАУЗА 1Ч</span>`;
                         statSub.innerText = "Охлаждение тильта";
                     }
+                } else if (currentLimitType === 'session' || currentLimitType === 'trail' || currentLimitType === 'count') {
+                    const nm = {
+                        session: ['DAY CLOSED', 'ТОРГОВЛЯ ЗАКРЫТА ДО КОНЦА СЕССИИ', 'ДЕНЬ ЗАКРЫТ', 'До конца сессии'],
+                        trail:   ['PROFIT GIVEBACK', 'ОТДАЛ ЧАСТЬ ПРИБЫЛИ: ДЕНЬ ЗАКРЫТ', 'ЗАЩИТА ПРИБЫЛИ', 'Откат от пика дня'],
+                        count:   ['TRADE LIMIT', 'ЛИМИТ СДЕЛОК: ДЕНЬ ЗАКРЫТ', 'ЛИМИТ СДЕЛОК', 'Слишком много сделок']
+                    }[currentLimitType];
+                    banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
+                    badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
+                    badge.innerText = nm[0];
+                    title.innerText = nm[1];
+                    title.className = "text-2xl font-black tracking-tight text-amber-300 pt-1";
+                    desc.innerText = (risk.lock_text ? risk.lock_text + '. ' : '') + 'Блокировка снимается в 17:00 CT.';
+
+                    if (statCard) {
+                        statTitle.innerHTML = `<i data-lucide="lock" class="w-5 h-5 inline mr-1"></i><span class="text-amber-400">${nm[2]}</span>`;
+                        statSub.innerText = nm[3];
+                    }
                 } else if (currentLimitType === 'asia') {
                     banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-indigo-950/40 border-indigo-500/40 shadow-lg shadow-indigo-950/30";
                     badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30";
                     badge.innerText = "ASIA LOCK";
                     title.innerText = "БЛОКИРОВКА АЗИАТСКОЙ СЕССИИ";
                     title.className = "text-2xl font-black tracking-tight text-indigo-300 pt-1";
-                    desc.innerText = "Торговля заблокирована по расписанию ночной/азиатской сессии (до 00:00 CT).";
+                    desc.innerText = "Азиатская сессия заблокирована: с открытия биржи до 00:00 по Ванкуверу.";
 
                     if (statCard) {
                         statTitle.innerHTML = `<i data-lucide="moon" class="w-5 h-5 inline mr-1"></i><span class="text-indigo-400">БЛОК АЗИИ</span>`;
@@ -701,8 +724,8 @@
                 const cash = Number(t.cash || 0);
                 const isClosed = Number(t.net_now) === 0;
                 if (isClosed) { totalPnL += cash; closedCount++; if (cash > 0) winCount++; } else { activeCount++; }
-                const cashClass = cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400');
-                const cashFormatted = (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
+                const cashClass = !isClosed ? 'text-slate-500' : (cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400'));
+                const cashFormatted = !isClosed ? '—' : (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
                 const openTime = t.opened_at ? new Date(t.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
 
                 const tr = document.createElement('tr');
