@@ -979,7 +979,7 @@
             document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        function renderDayTradesTable(titleText, pnl, trades) {
+function renderDayTradesTable(titleText, pnl, trades) {
             const titleEl = document.getElementById('selectedDayTitle');
             const badgeEl = document.getElementById('selectedDayPnLBadge');
             const tbody = document.getElementById('selectedDayTradesBody');
@@ -1002,12 +1002,27 @@
                 const cash = Number(t.cash || 0);
                 const isClosed = Number(t.net_now) === 0;
                 
-                // Форматирование времени входа и выхода
+                // Время входа
                 const openTime = t.opened_at ? new Date(t.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
-                const closeTime = t.closed_at ? new Date(t.closed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : (isClosed ? '—' : 'Открыта');
 
-                // Определение направления (Long / Short) по полям или объему
-                const isLong = (t.action && t.action.toUpperCase().includes('BUY')) || (t.market_position && t.market_position.toUpperCase().includes('LONG')) || (Number(t.quantity || 0) > 0);
+                // Расчет длительности сделки (если есть время закрытия)
+                let durationStr = '—';
+                if (t.opened_at && t.closed_at) {
+                    const diffMs = new Date(t.closed_at) - new Date(t.opened_at);
+                    if (diffMs > 0) {
+                        const totalSec = Math.floor(diffMs / 1000);
+                        const mins = Math.floor(totalSec / 60);
+                        const secs = totalSec % 60;
+                        durationStr = mins > 0 ? `${mins} мин ${secs} сек` : `${secs} сек`;
+                    }
+                } else if (!isClosed) {
+                    durationStr = '<span class="text-indigo-400 font-bold">Активна</span>';
+                }
+
+                // Исправленное определение направления (если в данных есть маркеры buy/sell или смотрим на логику)
+                const actionText = String(t.action || t.market_position || '').toLowerCase();
+                const isLong = actionText.includes('buy') || actionText.includes('long') || (!actionText.includes('sell') && !actionText.includes('short') && cash >= 0);
+                
                 const dirBadge = isLong 
                     ? `<span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold font-mono">LONG ▲</span>`
                     : `<span class="px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold font-mono">SHORT ▼</span>`;
@@ -1021,8 +1036,8 @@
                     <td class="py-3.5 px-4 text-center font-bold font-mono text-slate-400">#${idx + 1}</td>
                     <td class="py-3.5 px-4 font-mono text-xs">
                         <span class="text-white font-semibold">${openTime}</span>
-                        <span class="text-slate-500 mx-1">→</span>
-                        <span class="text-slate-400">${closeTime}</span>
+                        <span class="text-slate-500 mx-2">⏱</span>
+                        <span class="text-slate-300">${durationStr}</span>
                     </td>
                     <td class="py-3.5 px-4">${dirBadge}</td>
                     <td class="py-3.5 px-4">
@@ -1034,7 +1049,7 @@
                 tbody.appendChild(tr);
             });
             lucide.createIcons();
-        }
+        }         
     </script>
 </body>
 </html>
