@@ -272,13 +272,8 @@
                         </div>
                     </div>
                     
-                    <div class="flex items-center gap-3">
-                        <button onclick="resetDaySelection()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all flex items-center gap-1.5">
-                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Показать весь месяц
-                        </button>
-                        <span id="selectedDayPnLBadge" class="px-3 py-1.5 rounded-xl text-sm font-bold font-mono bg-slate-800 text-slate-300 border border-slate-700">
-                            $0.00
-                        </span>
+                    <div id="dayControlsHeader" class="flex items-center gap-3">
+                        <!-- Динамические переключатели рендерятся тут -->
                     </div>
                 </div>
 
@@ -361,14 +356,16 @@
         let allCalendarTrades = [];
         let selectedDayKey = null;
 
-        // Предустановленные теги для автодополнения (как на вашем скриншоте)
+        // По умолчанию отображать скриншоты (сохраняется в браузер)
+        let showSnapshots = localStorage.getItem('showSnapshots') !== 'false';
+
+        // Предустановленные теги для автодополнения
         const PRESET_TAGS = [
             "3000T", "2000T", "1000T", "5m", "30m", "entry_at_base", 
             "entry_chasing", "entry_eth", "entry_power_hour", 
             "close_pre", "close_rth", "correct_exit_10%+"
         ];
 
-        // Имитация локального хранилища тегов и скриншотов для демо-режима
         const mockJournalData = {};
 
         function tradingDay(date) {
@@ -738,7 +735,7 @@
             document.getElementById('statActiveTrades').innerText = active;
         }
 
-        // CALENDAR & JOURNAL LOGIC WITH TAGS & SNAPSHOTS
+        // CALENDAR & JOURNAL LOGIC WITH SNAPSHOT TOGGLE & AUTOCOMPLETE TAGS
         function changeMonth(delta) {
             currentCalDate.setMonth(currentCalDate.getMonth() + delta);
             renderCalendar();
@@ -747,6 +744,17 @@
         function resetDaySelection() {
             selectedDayKey = null;
             renderCalendar();
+        }
+
+        function toggleSnapshotsMode() {
+            showSnapshots = !showSnapshots;
+            localStorage.setItem('showSnapshots', showSnapshots);
+            const currentTitle = document.getElementById('selectedDayTitle') ? document.getElementById('selectedDayTitle').innerText : '';
+            renderDayTradesTable(
+                currentTitle, 
+                0, 
+                allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey)
+            );
         }
 
         function renderCalendar() {
@@ -835,7 +843,7 @@
             }
 
             const monthPnLEl = document.getElementById('calMonthPnL');
-            monthPnLEl.innerText = (monthPnLEl >= 0 ? '+$' : '-$') + Math.abs(monthPnL).toFixed(2);
+            monthPnLEl.innerText = (monthPnL >= 0 ? '+$' : '-$') + Math.abs(monthPnL).toFixed(2);
             monthPnLEl.className = `text-base font-bold font-mono ${monthPnL > 0 ? 'text-emerald-400' : (monthPnL < 0 ? 'text-rose-400' : 'text-slate-300')}`;
 
             document.getElementById('calTradingDays').innerText = tradingDaysCount;
@@ -858,13 +866,12 @@
 
         function renderDayTradesTable(titleText, pnl, trades) {
             const titleEl = document.getElementById('selectedDayTitle');
-            const badgeEl = document.getElementById('selectedDayPnLBadge');
             const container = document.getElementById('dayTradesContainer');
             const emptyState = document.getElementById('emptyDayTrades');
 
-            titleEl.innerText = titleText;
-            const cashFormatted = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
-            badgeEl.innerText = cashFormatted;
+            if (titleEl) titleEl.innerText = titleText;
+
+            renderHeaderControls(pnl);
 
             container.innerHTML = '';
             if (!trades || trades.length === 0) {
@@ -901,7 +908,6 @@
 
                 const gKey = t.group_no || `t_${idx}`;
                 if (!mockJournalData[gKey]) {
-                    // Каждая 5-я сделка (idx % 5 === 4) без снимка для примера
                     const hasShot = (idx % 5 !== 4);
                     mockJournalData[gKey] = {
                         tags: idx % 2 === 0 ? ["3000T", "entry_at_base"] : ["1000T", "close_pre"],
@@ -912,7 +918,6 @@
                 const cardDiv = document.createElement('div');
                 cardDiv.className = "bg-slate-950/50 border border-slate-800 rounded-2xl p-4 space-y-3";
                 
-                // Рендер тегов
                 let tagsHtml = '';
                 mockJournalData[gKey].tags.forEach(tag => {
                     tagsHtml += `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-mono">
@@ -920,74 +925,76 @@
                     </span>`;
                 });
 
-// Скриншот (отображение в полном размере без обрезки)
                 let snapshotHtml = '';
-                if (mockJournalData[gKey].snapshot) {
-                    const imgUrl = esc(mockJournalData[gKey].snapshot);
-                    snapshotHtml = `
-                        <div class="mt-3 relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
-                            <div class="bg-slate-900/90 px-3 py-1.5 text-[10px] text-slate-400 flex items-center justify-between border-b border-slate-800">
-                                <span>Скриншот входа NinjaTrader</span>
-                                <a href="${imgUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
-                                    Открыть оригинал &#8599;
-                                </a>
+                if (showSnapshots) {
+                    if (mockJournalData[gKey].snapshot) {
+                        const imgUrl = esc(mockJournalData[gKey].snapshot);
+                        snapshotHtml = `
+                            <div class="mt-3 relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+                                <div class="bg-slate-900/90 px-3 py-1.5 text-[10px] text-slate-400 flex items-center justify-between border-b border-slate-800">
+                                    <span>Скриншот графика NinjaTrader</span>
+                                    <a href="${imgUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium">
+                                        Открыть оригинал &#8599;
+                                    </a>
+                                </div>
+                                <div class="p-2 flex justify-center bg-slate-950">
+                                    <a href="${imgUrl}" target="_blank" rel="noopener noreferrer" class="block w-full">
+                                        <img src="${imgUrl}" alt="Скриншот графика" class="w-full h-auto object-contain rounded-lg max-h-[600px] hover:opacity-95 transition-opacity">
+                                    </a>
+                                </div>
                             </div>
-                            <div class="p-2 flex justify-center bg-slate-950">
-                                <a href="${imgUrl}" target="_blank" rel="noopener noreferrer" class="block w-full">
-                                    <img src="${imgUrl}" alt="Скриншот графика" class="w-full h-auto object-contain rounded-lg max-h-[600px] hover:opacity-95 transition-opacity">
-                                </a>
+                        `;
+                    } else {
+                        snapshotHtml = `
+                            <div class="mt-3 p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
+                                <i data-lucide="camera-off" class="w-5 h-5 opacity-40"></i>
+                                <span>Снимок еще не добавлен. Можно добавить позже.</span>
+                                <button onclick="addMockSnapshot('${gKey}')" class="px-3 py-1 rounded-lg bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 transition-all font-semibold">Добавить образец</button>
                             </div>
-                        </div>
-                    `;
-                } else {
-                    snapshotHtml = `
-                        <div class="mt-3 p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
-                            <i data-lucide="camera-off" class="w-5 h-5 opacity-40"></i>
-                            <span>Снимок еще не добавлен. Можно добавить позже.</span>
-                            <button onclick="addMockSnapshot('${gKey}')" class="px-3 py-1 rounded-lg bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 transition-all font-semibold">Добавить образец</button>
-                        </div>
-                    `;
+                        `;
+                    }
                 }
 
                 cardDiv.innerHTML = `
-                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800/60 pb-3">
+                    <div class="flex items-center justify-between border-b border-slate-800/60 pb-3">
                         <div class="flex items-center space-x-3">
                             <span class="px-2.5 py-1 rounded-lg bg-slate-800 font-mono font-bold text-white text-xs">#${esc(t.group_no || (idx + 1))}</span>
                             ${dirBadge}
                             <div>
                                 <span class="font-bold text-white text-xs">${esc(t.instrument || 'NQ')}</span>
-                                <span class="text-[11px] text-slate-400 ml-2">${esc(t.account_name || '')}</span>
+                                <span class="text-[11px] text-slate-400 ml-2 font-mono">${esc(t.account_name || '')}</span>
                             </div>
                         </div>
-                        <div class="flex items-center space-x-4 font-mono text-xs">
-                            <span class="text-slate-300">${openTime} (⏱ ${durationStr})</span>
-                            <span class="font-bold text-base ${cashClass}">${cashStr}</span>
+                        <div class="flex items-center space-x-4 text-right">
+                            <div class="hidden sm:block text-xs font-mono text-slate-400">
+                                <div>${openTime}</div>
+                                <div class="text-[10px] text-slate-500">⏱ ${durationStr}</div>
+                            </div>
+                            <div class="font-bold font-mono text-lg ${cashClass} min-w-[90px]">
+                                ${cashStr}
+                            </div>
                         </div>
                     </div>
 
-                    <!-- БЛОК ТЕГОВ С ПОДДЕРЖКОЙ ЗАПЯТОЙ -->
                     <div class="flex flex-wrap items-center gap-2 pt-1">
                         <span class="text-[11px] font-semibold text-slate-400 uppercase">Теги:</span>
                         <div id="tagsList_${gKey}" class="flex flex-wrap items-center gap-1.5">
                             ${tagsHtml}
                         </div>
-<!-- Внутри генерации карточки сделки (вместо старого инпута): -->
-<div class="relative inline-block">
-    <input type="text" id="tagInput_${gKey}" placeholder="+ добавить тег (через запятую)..." 
-        autocomplete="off"
-        data-lpignore="true"
-        onfocus="showAllTags('${gKey}')"
-        oninput="handleTagInput(event, '${gKey}')" 
-        onkeydown="handleTagKeydown(event, '${gKey}')"
-        onblur="hideTagDropdownSoon('${gKey}')"
-        class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 w-48">
-    
-    <!-- Выпадающий список автодополнения -->
-    <div id="tagDropdown_${gKey}" class="hidden absolute left-0 mt-1 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-20 max-h-40 overflow-y-auto"></div>
-</div>
+                        <div class="relative inline-block">
+                            <input type="text" id="tagInput_${gKey}" placeholder="+ добавить тег..." 
+                                autocomplete="off"
+                                data-lpignore="true"
+                                onfocus="showAllTags('${gKey}')"
+                                oninput="handleTagInput(event, '${gKey}')" 
+                                onkeydown="handleTagKeydown(event, '${gKey}')"
+                                onblur="hideTagDropdownSoon('${gKey}')"
+                                class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 w-48">
+                            
+                            <div id="tagDropdown_${gKey}" class="hidden absolute left-0 mt-1 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-20 max-h-40 overflow-y-auto"></div>
+                        </div>
                     </div>
 
-                    <!-- СКРИНШОТ -->
                     ${snapshotHtml}
                 `;
                 container.appendChild(cardDiv);
@@ -995,14 +1002,29 @@
             lucide.createIcons();
         }
 
-        // ЛОГИКА АВТОДОПОЛНЕНИЯ ТЕГОВ И ЗАПЯТЫХ
-JavaScript
-        // Показать все доступные теги при клике/фокусе на инпут (даже если поле пустое)
+        function renderHeaderControls(pnl) {
+            const cardHeader = document.getElementById('dayControlsHeader');
+            if (!cardHeader) return;
+
+            const cashFormatted = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+            cardHeader.innerHTML = `
+                <label class="flex items-center gap-2 cursor-pointer bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 text-xs text-slate-300 font-semibold transition-all">
+                    <input type="checkbox" onchange="toggleSnapshotsMode()" ${showSnapshots ? 'checked' : ''} class="rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-0 w-4 h-4">
+                    <span>📷 Графики</span>
+                </label>
+                <button onclick="resetDaySelection()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all flex items-center gap-1.5">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Показать весь месяц
+                </button>
+                <span id="selectedDayPnLBadge" class="px-3 py-1.5 rounded-xl text-sm font-bold font-mono bg-slate-800 text-slate-300 border border-slate-700">
+                    ${cashFormatted}
+                </span>
+            `;
+        }
+
         function showAllTags(gKey) {
             const dropdown = document.getElementById(`tagDropdown_${gKey}`);
             if (!dropdown) return;
 
-            // Фильтруем теги, которых еще нет у этой сделки
             const availableTags = PRESET_TAGS.filter(tag => !mockJournalData[gKey].tags.includes(tag));
             if (availableTags.length === 0) return;
 
@@ -1011,7 +1033,6 @@ JavaScript
                 const item = document.createElement('div');
                 item.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
                 item.innerText = tag;
-                // Используем mousedown вместо click, чтобы инпут не терял фокус досрочно
                 item.onmousedown = (e) => {
                     e.preventDefault();
                     if (!mockJournalData[gKey].tags.includes(tag)) {
@@ -1030,13 +1051,12 @@ JavaScript
             const val = e.target.value;
             const dropdown = document.getElementById(`tagDropdown_${gKey}`);
             
-            // Если ввели запятую, сохраняем тег
             if (val.includes(',')) {
                 const parts = val.split(',');
                 const newTag = parts[0].trim();
                 if (newTag && !mockJournalData[gKey].tags.includes(newTag)) {
                     mockJournalData[gKey].tags.push(newTag);
-                    if (!PRESET_TAGS.includes(newTag)) PRESET_TAGS.push(newTag); // добавляем в общий список пресетов
+                    if (!PRESET_TAGS.includes(newTag)) PRESET_TAGS.push(newTag);
                 }
                 e.target.value = '';
                 dropdown.classList.add('hidden');
@@ -1086,12 +1106,11 @@ JavaScript
         }
 
         function hideTagDropdownSoon(gKey) {
-            // Небольшая задержка, чтобы успел сработать клик мышки по элементу списка
             setTimeout(() => {
                 const dropdown = document.getElementById(`tagDropdown_${gKey}`);
                 if (dropdown) dropdown.classList.add('hidden');
             }, 200);
-        }       
+        }
 
         function removeTag(gKey, tagToRemove) {
             mockJournalData[gKey].tags = mockJournalData[gKey].tags.filter(t => t !== tagToRemove);
