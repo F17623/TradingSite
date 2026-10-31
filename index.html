@@ -106,7 +106,6 @@
 
         <!-- DASHBOARD VIEW -->
         <main id="viewDashboard" class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
-            <!-- RISK STATUS BANNER -->
             <div id="statusBanner" class="p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-slate-900 border-slate-800">
                 <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div class="space-y-1">
@@ -129,7 +128,6 @@
                 </div>
             </div>
 
-            <!-- ANTI-TILT & ASIA CONTROL PANEL -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row items-center justify-between gap-4">
                 <div class="flex items-center space-x-3 w-full lg:w-auto">
                     <div class="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
@@ -159,7 +157,6 @@
                 </div>
             </div>
 
-            <!-- STATS GRID -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col">
                     <span class="text-xs font-medium text-slate-400 mb-1">Итог (Recent P&L)</span>
@@ -185,7 +182,6 @@
                 </div>
             </div>
 
-            <!-- TRADES TABLE -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
                 <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
                     <div class="flex items-center space-x-2">
@@ -226,7 +222,7 @@
                         </div>
                         <div>
                             <h2 class="text-base font-bold text-white">Торговый Календарь и Журнал</h2>
-                            <p class="text-xs text-slate-400">Нажмите на любой день для просмотра и разбора сделок по group_no</p>
+                            <p class="text-xs text-slate-400">Нажмите на любой день для просмотра и разбора сделок с тегами и графиками</p>
                         </div>
                     </div>
                     <div class="flex items-center space-x-2 bg-slate-950/60 border border-slate-800 p-1.5 rounded-xl">
@@ -263,7 +259,7 @@
                 </div>
             </div>
 
-            <!-- DETAILED DAY TRADES LIST -->
+            <!-- DETAILED DAY TRADES LIST WITH TAGS AND SCREENSHOTS -->
             <div id="dayDetailsCard" class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-0">
                 <div class="p-5 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/90">
                     <div class="flex items-center space-x-3">
@@ -272,7 +268,7 @@
                         </div>
                         <div>
                             <h3 id="selectedDayTitle" class="text-base font-bold text-white">Сделки за день</h3>
-                            <p class="text-xs text-slate-400">Хронологический порядок по group_no</p>
+                            <p class="text-xs text-slate-400">Разбор сделок с тегами и графиками</p>
                         </div>
                     </div>
                     
@@ -286,19 +282,9 @@
                     </div>
                 </div>
 
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm">
-                        <thead class="bg-slate-950/60 text-slate-400 uppercase tracking-wider text-[11px] font-semibold border-b border-slate-800">
-                            <tr>
-                                <th class="py-3.5 px-4 text-center w-12">№</th>
-                                <th class="py-3.5 px-4">Время / Длительность</th>
-                                <th class="py-3.5 px-4">Направление</th>
-                                <th class="py-3.5 px-4">Инструмент / Счет</th>
-                                <th class="py-3.5 px-4 text-right">Результат (P&L)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="selectedDayTradesBody" class="divide-y divide-slate-800/60 font-medium"></tbody>
-                    </table>
+                <!-- LIST OF TRADES WITH EXPANDABLE SNAPSHOTS & TAG INPUTS -->
+                <div id="dayTradesContainer" class="divide-y divide-slate-800/80 p-4 space-y-4">
+                    <!-- Сюда динамически рендерим карточки сделок -->
                 </div>
 
                 <div id="emptyDayTrades" class="hidden p-10 text-center text-slate-500 text-xs">
@@ -374,6 +360,16 @@
         let currentCalDate = new Date();
         let allCalendarTrades = [];
         let selectedDayKey = null;
+
+        // Предустановленные теги для автодополнения (как на вашем скриншоте)
+        const PRESET_TAGS = [
+            "3000T", "2000T", "1000T", "5m", "30m", "entry_at_base", 
+            "entry_chasing", "entry_eth", "entry_power_hour", 
+            "close_pre", "close_rth", "correct_exit_10%+"
+        ];
+
+        // Имитация локального хранилища тегов и скриншотов для демо-режима
+        const mockJournalData = {};
 
         function tradingDay(date) {
             const s = date.toLocaleString('sv-SE', { timeZone: 'America/Chicago' });
@@ -568,7 +564,7 @@
             updateSyncStatus('syncing');
             if (isDemoMode || !supabaseClient) {
                 renderRiskStatus({ full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 });
-                renderTrades([{ trade_no: 104, account_name: 'Sim101', instrument: 'NQ', opened_at: new Date().toISOString(), net_now: 0, cash: 320.50 }]);
+                renderTrades([{ trade_no: 104, group_no: 'g1', account_name: 'Sim101', instrument: 'NQ', opened_at: new Date().toISOString(), net_now: 0, cash: 320.50 }]);
                 updateSyncStatus('demo');
                 return;
             }
@@ -582,7 +578,6 @@
 
                 if (riskErr) throw riskErr;
 
-                // ИСПРАВЛЕНИЕ АГЕНТА №1: Сортировка по убыванию с лимитом, чтобы свежие сделки не отрезались
                 const since = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
                 const { data: tradesData } = await supabaseClient
                     .from('trade_summary')
@@ -591,10 +586,6 @@
                     .order('opened_at', { ascending: false })
                     .limit(1000);
 
-                const pb = !!riskData.playback_mode && !!riskData.playback_mode_at &&
-                           (Date.now() - new Date(riskData.playback_mode_at).getTime()) < 180000;
-                
-                // ИСПРАВЛЕНИЕ АГЕНТА №8: Исключаем Playback из постоянного журнала
                 allCalendarTrades = (tradesData || []).filter(t => t.opened_at &&
                     !String(t.account_name || '').toLowerCase().startsWith('playback'));
 
@@ -612,7 +603,7 @@
         }
 
         function startPolling() { 
-            if (!pollInterval) pollInterval = setInterval(fetchData, 10000); // Увеличен интервал до 10с для защиты ввода
+            if (!pollInterval) pollInterval = setInterval(fetchData, 10000);
         }
         function stopPolling() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
 
@@ -655,9 +646,7 @@
                 buttonsContainer.style.pointerEvents = 'auto';
                 const maxT = Number(risk.max_trades || 0), nT = Number(risk.stat_trades || 0), pk = Number(risk.stat_peak || 0);
                 let st = "Управление режимами в risk_control";
-                if (maxT) {
-                    st = `Сделок сегодня: ${nT} из ${maxT} · пик дня ${pk >= 0 ? '+$' : '-$'}${Math.abs(pk).toFixed(0)}`;
-                }
+                if (maxT) st = `Сделок сегодня: ${nT} из ${maxT} · пик дня ${pk >= 0 ? '+$' : '-$'}${Math.abs(pk).toFixed(0)}`;
                 subText.innerText = st;
                 subText.className = "text-[11px] text-slate-400";
             }
@@ -749,7 +738,7 @@
             document.getElementById('statActiveTrades').innerText = active;
         }
 
-        // CALENDAR & JOURNAL LOGIC
+        // CALENDAR & JOURNAL LOGIC WITH TAGS & SNAPSHOTS
         function changeMonth(delta) {
             currentCalDate.setMonth(currentCalDate.getMonth() + delta);
             renderCalendar();
@@ -846,7 +835,7 @@
             }
 
             const monthPnLEl = document.getElementById('calMonthPnL');
-            monthPnLEl.innerText = (monthPnL >= 0 ? '+$' : '-$') + Math.abs(monthPnL).toFixed(2);
+            monthPnLEl.innerText = (monthPnLEl >= 0 ? '+$' : '-$') + Math.abs(monthPnL).toFixed(2);
             monthPnLEl.className = `text-base font-bold font-mono ${monthPnL > 0 ? 'text-emerald-400' : (monthPnL < 0 ? 'text-rose-400' : 'text-slate-300')}`;
 
             document.getElementById('calTradingDays').innerText = tradingDaysCount;
@@ -870,14 +859,14 @@
         function renderDayTradesTable(titleText, pnl, trades) {
             const titleEl = document.getElementById('selectedDayTitle');
             const badgeEl = document.getElementById('selectedDayPnLBadge');
-            const tbody = document.getElementById('selectedDayTradesBody');
+            const container = document.getElementById('dayTradesContainer');
             const emptyState = document.getElementById('emptyDayTrades');
 
             titleEl.innerText = titleText;
             const cashFormatted = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
             badgeEl.innerText = cashFormatted;
 
-            tbody.innerHTML = '';
+            container.innerHTML = '';
             if (!trades || trades.length === 0) {
                 emptyState.classList.remove('hidden');
                 return;
@@ -910,25 +899,163 @@
                 const cashClass = !isClosed ? 'text-slate-500' : (cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400'));
                 const cashStr = !isClosed ? '—' : (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
 
-                const tr = document.createElement('tr');
-                tr.className = "hover:bg-slate-800/40 transition-colors";
-                tr.innerHTML = `
-                    <td class="py-3.5 px-4 text-center font-bold font-mono text-slate-400">#${esc(t.group_no || (idx + 1))}</td>
-                    <td class="py-3.5 px-4 font-mono text-xs">
-                        <span class="text-white font-semibold">${openTime}</span>
-                        <span class="text-slate-500 mx-2">⏱</span>
-                        <span class="text-slate-300">${durationStr}</span>
-                    </td>
-                    <td class="py-3.5 px-4">${dirBadge}</td>
-                    <td class="py-3.5 px-4">
-                        <span class="font-bold text-white text-xs">${esc(t.instrument || 'NQ')}</span>
-                        <span class="block text-[10px] text-slate-500 font-mono">${esc(t.account_name || '')}</span>
-                    </td>
-                    <td class="py-3.5 px-4 text-right font-bold font-mono text-base ${cashClass}">${cashStr}</td>
+                const gKey = t.group_no || `t_${idx}`;
+                if (!mockJournalData[gKey]) {
+                    // Каждая 5-я сделка (idx % 5 === 4) без снимка для примера
+                    const hasShot = (idx % 5 !== 4);
+                    mockJournalData[gKey] = {
+                        tags: idx % 2 === 0 ? ["3000T", "entry_at_base"] : ["1000T", "close_pre"],
+                        snapshot: hasShot ? "image_9b625b.jpg" : null
+                    };
+                }
+
+                const cardDiv = document.createElement('div');
+                cardDiv.className = "bg-slate-950/50 border border-slate-800 rounded-2xl p-4 space-y-3";
+                
+                // Рендер тегов
+                let tagsHtml = '';
+                mockJournalData[gKey].tags.forEach(tag => {
+                    tagsHtml += `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-mono">
+                        ${esc(tag)} <button onclick="removeTag('${gKey}', '${tag}')" class="hover:text-white">&times;</button>
+                    </span>`;
+                });
+
+                // Скриншот (образец или заглушка для каждой 5-й сделки)
+                let snapshotHtml = '';
+                if (mockJournalData[gKey].snapshot) {
+                    snapshotHtml = `
+                        <div class="mt-3 relative rounded-xl overflow-hidden border border-slate-800 bg-slate-900">
+                            <div class="bg-slate-950/80 px-3 py-1.5 text-[10px] text-slate-400 flex items-center justify-between border-b border-slate-800">
+                                <span>Скриншот входа (Образец терминала NinjaTrader)</span>
+                                <span class="text-indigo-400">group_no: #${esc(t.group_no || '—')}</span>
+                            </div>
+                            <img src="${mockJournalData[gKey].snapshot}" alt="Скриншот графика" class="w-full h-auto max-h-[350px] object-cover">
+                        </div>
+                    `;
+                } else {
+                    snapshotHtml = `
+                        <div class="mt-3 p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
+                            <i data-lucide="camera-off" class="w-5 h-5 opacity-40"></i>
+                            <span>Снимок еще не добавлен (каждая 5-я сделка). Можно добавить позже.</span>
+                            <button onclick="addMockSnapshot('${gKey}')" class="px-3 py-1 rounded-lg bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 transition-all font-semibold">Добавить образец</button>
+                        </div>
+                    `;
+                }
+
+                cardDiv.innerHTML = `
+                    <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800/60 pb-3">
+                        <div class="flex items-center space-x-3">
+                            <span class="px-2.5 py-1 rounded-lg bg-slate-800 font-mono font-bold text-white text-xs">#${esc(t.group_no || (idx + 1))}</span>
+                            ${dirBadge}
+                            <div>
+                                <span class="font-bold text-white text-xs">${esc(t.instrument || 'NQ')}</span>
+                                <span class="text-[11px] text-slate-400 ml-2">${esc(t.account_name || '')}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-4 font-mono text-xs">
+                            <span class="text-slate-300">${openTime} (⏱ ${durationStr})</span>
+                            <span class="font-bold text-base ${cashClass}">${cashStr}</span>
+                        </div>
+                    </div>
+
+                    <!-- БЛОК ТЕГОВ С ПОДДЕРЖКОЙ ЗАПЯТОЙ -->
+                    <div class="flex flex-wrap items-center gap-2 pt-1">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase">Теги:</span>
+                        <div id="tagsList_${gKey}" class="flex flex-wrap items-center gap-1.5">
+                            ${tagsHtml}
+                        </div>
+                        <div class="relative inline-block">
+                            <input type="text" id="tagInput_${gKey}" placeholder="+ добавить тег (через запятую)..." 
+                                oninput="handleTagInput(event, '${gKey}')" 
+                                onkeydown="handleTagKeydown(event, '${gKey}')"
+                                class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 w-48">
+                            
+                            <!-- Выпадающий список автодополнения (Dropdown) -->
+                            <div id="tagDropdown_${gKey}" class="hidden absolute left-0 mt-1 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-20 max-h-40 overflow-y-auto"></div>
+                        </div>
+                    </div>
+
+                    <!-- СКРИНШОТ -->
+                    ${snapshotHtml}
                 `;
-                tbody.appendChild(tr);
+                container.appendChild(cardDiv);
             });
             lucide.createIcons();
+        }
+
+        // ЛОГИКА АВТОДОПОЛНЕНИЯ ТЕГОВ И ЗАПЯТЫХ
+        function handleTagInput(e, gKey) {
+            const val = e.target.value;
+            const dropdown = document.getElementById(`tagDropdown_${gKey}`);
+            
+            // Если ввели запятую, сразу сохраняем тег
+            if (val.includes(',')) {
+                const parts = val.split(',');
+                const newTag = parts[0].trim();
+                if (newTag) {
+                    if (!mockJournalData[gKey].tags.includes(newTag)) {
+                        mockJournalData[gKey].tags.push(newTag);
+                    }
+                }
+                e.target.value = '';
+                dropdown.classList.add('hidden');
+                // Перерисовываем список сделок дня, чтобы обновить теги
+                renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
+                return;
+            }
+
+            if (!val.trim()) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+
+            // Фильтруем пресеты по введенному тексту
+            const matches = PRESET_TAGS.filter(tag => tag.toLowerCase().includes(val.toLowerCase()) && !mockJournalData[gKey].tags.includes(tag));
+            
+            if (matches.length === 0) {
+                dropdown.classList.add('hidden');
+                return;
+            }
+
+            dropdown.innerHTML = '';
+            matches.forEach(match => {
+                const item = document.createElement('div');
+                item.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
+                item.innerText = match;
+                item.onclick = () => {
+                    if (!mockJournalData[gKey].tags.includes(match)) {
+                        mockJournalData[gKey].tags.push(match);
+                    }
+                    e.target.value = '';
+                    dropdown.classList.add('hidden');
+                    renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
+                };
+                dropdown.appendChild(item);
+            });
+            dropdown.classList.remove('hidden');
+        }
+
+        function handleTagKeydown(e, gKey) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const val = e.target.value.trim().replace(/,/g, '');
+                if (val && !mockJournalData[gKey].tags.includes(val)) {
+                    mockJournalData[gKey].tags.push(val);
+                    e.target.value = '';
+                    document.getElementById(`tagDropdown_${gKey}`).classList.add('hidden');
+                    renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
+                }
+            }
+        }
+
+        function removeTag(gKey, tagToRemove) {
+            mockJournalData[gKey].tags = mockJournalData[gKey].tags.filter(t => t !== tagToRemove);
+            renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
+        }
+
+        function addMockSnapshot(gKey) {
+            mockJournalData[gKey].snapshot = "image_9b625b.jpg";
+            renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
         }
     </script>
 </body>
