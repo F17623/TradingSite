@@ -971,15 +971,20 @@
                         <div id="tagsList_${gKey}" class="flex flex-wrap items-center gap-1.5">
                             ${tagsHtml}
                         </div>
-                        <div class="relative inline-block">
-                            <input type="text" id="tagInput_${gKey}" placeholder="+ добавить тег (через запятую)..." 
-                                oninput="handleTagInput(event, '${gKey}')" 
-                                onkeydown="handleTagKeydown(event, '${gKey}')"
-                                class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 w-48">
-                            
-                            <!-- Выпадающий список автодополнения (Dropdown) -->
-                            <div id="tagDropdown_${gKey}" class="hidden absolute left-0 mt-1 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-20 max-h-40 overflow-y-auto"></div>
-                        </div>
+<!-- Внутри генерации карточки сделки (вместо старого инпута): -->
+<div class="relative inline-block">
+    <input type="text" id="tagInput_${gKey}" placeholder="+ добавить тег (через запятую)..." 
+        autocomplete="off"
+        data-lpignore="true"
+        onfocus="showAllTags('${gKey}')"
+        oninput="handleTagInput(event, '${gKey}')" 
+        onkeydown="handleTagKeydown(event, '${gKey}')"
+        onblur="hideTagDropdownSoon('${gKey}')"
+        class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 w-48">
+    
+    <!-- Выпадающий список автодополнения -->
+    <div id="tagDropdown_${gKey}" class="hidden absolute left-0 mt-1 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-20 max-h-40 overflow-y-auto"></div>
+</div>
                     </div>
 
                     <!-- СКРИНШОТ -->
@@ -991,33 +996,56 @@
         }
 
         // ЛОГИКА АВТОДОПОЛНЕНИЯ ТЕГОВ И ЗАПЯТЫХ
+JavaScript
+        // Показать все доступные теги при клике/фокусе на инпут (даже если поле пустое)
+        function showAllTags(gKey) {
+            const dropdown = document.getElementById(`tagDropdown_${gKey}`);
+            if (!dropdown) return;
+
+            // Фильтруем теги, которых еще нет у этой сделки
+            const availableTags = PRESET_TAGS.filter(tag => !mockJournalData[gKey].tags.includes(tag));
+            if (availableTags.length === 0) return;
+
+            dropdown.innerHTML = '';
+            availableTags.forEach(tag => {
+                const item = document.createElement('div');
+                item.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
+                item.innerText = tag;
+                // Используем mousedown вместо click, чтобы инпут не терял фокус досрочно
+                item.onmousedown = (e) => {
+                    e.preventDefault();
+                    if (!mockJournalData[gKey].tags.includes(tag)) {
+                        mockJournalData[gKey].tags.push(tag);
+                    }
+                    document.getElementById(`tagInput_${gKey}`).value = '';
+                    dropdown.classList.add('hidden');
+                    renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
+                };
+                dropdown.appendChild(item);
+            });
+            dropdown.classList.remove('hidden');
+        }
+
         function handleTagInput(e, gKey) {
             const val = e.target.value;
             const dropdown = document.getElementById(`tagDropdown_${gKey}`);
             
-            // Если ввели запятую, сразу сохраняем тег
+            // Если ввели запятую, сохраняем тег
             if (val.includes(',')) {
                 const parts = val.split(',');
                 const newTag = parts[0].trim();
-                if (newTag) {
-                    if (!mockJournalData[gKey].tags.includes(newTag)) {
-                        mockJournalData[gKey].tags.push(newTag);
-                    }
+                if (newTag && !mockJournalData[gKey].tags.includes(newTag)) {
+                    mockJournalData[gKey].tags.push(newTag);
+                    if (!PRESET_TAGS.includes(newTag)) PRESET_TAGS.push(newTag); // добавляем в общий список пресетов
                 }
                 e.target.value = '';
                 dropdown.classList.add('hidden');
-                // Перерисовываем список сделок дня, чтобы обновить теги
                 renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
                 return;
             }
 
-            if (!val.trim()) {
-                dropdown.classList.add('hidden');
-                return;
-            }
-
-            // Фильтруем пресеты по введенному тексту
-            const matches = PRESET_TAGS.filter(tag => tag.toLowerCase().includes(val.toLowerCase()) && !mockJournalData[gKey].tags.includes(tag));
+            const query = val.trim().toLowerCase();
+            const matches = PRESET_TAGS.filter(tag => tag.toLowerCase().includes(query) && !mockJournalData[gKey].tags.includes(tag));
             
             if (matches.length === 0) {
                 dropdown.classList.add('hidden');
@@ -1029,7 +1057,8 @@
                 const item = document.createElement('div');
                 item.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
                 item.innerText = match;
-                item.onclick = () => {
+                item.onmousedown = (e) => {
+                    e.preventDefault();
                     if (!mockJournalData[gKey].tags.includes(match)) {
                         mockJournalData[gKey].tags.push(match);
                     }
@@ -1048,12 +1077,21 @@
                 const val = e.target.value.trim().replace(/,/g, '');
                 if (val && !mockJournalData[gKey].tags.includes(val)) {
                     mockJournalData[gKey].tags.push(val);
+                    if (!PRESET_TAGS.includes(val)) PRESET_TAGS.push(val);
                     e.target.value = '';
                     document.getElementById(`tagDropdown_${gKey}`).classList.add('hidden');
                     renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
                 }
             }
         }
+
+        function hideTagDropdownSoon(gKey) {
+            // Небольшая задержка, чтобы успел сработать клик мышки по элементу списка
+            setTimeout(() => {
+                const dropdown = document.getElementById(`tagDropdown_${gKey}`);
+                if (dropdown) dropdown.classList.add('hidden');
+            }, 200);
+        }       
 
         function removeTag(gKey, tagToRemove) {
             mockJournalData[gKey].tags = mockJournalData[gKey].tags.filter(t => t !== tagToRemove);
