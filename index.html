@@ -1005,7 +1005,7 @@ function renderDayTradesTable(titleText, pnl, trades) {
                 // Время входа
                 const openTime = t.opened_at ? new Date(t.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
 
-                // Расчет длительности сделки (если есть время закрытия)
+                // Расчет длительности сделки (используем closed_at из новой вьюхи)
                 let durationStr = '—';
                 if (t.opened_at && t.closed_at) {
                     const diffMs = new Date(t.closed_at) - new Date(t.opened_at);
@@ -1019,9 +1019,8 @@ function renderDayTradesTable(titleText, pnl, trades) {
                     durationStr = '<span class="text-indigo-400 font-bold">Активна</span>';
                 }
 
-                // Исправленное определение направления (если в данных есть маркеры buy/sell или смотрим на логику)
-                const actionText = String(t.action || t.market_position || '').toLowerCase();
-                const isLong = actionText.includes('buy') || actionText.includes('long') || (!actionText.includes('sell') && !actionText.includes('short') && cash >= 0);
+                // Направление берем прямо из нового поля direction ('LONG' или 'SHORT')
+                const isLong = String(t.direction || '').toUpperCase() === 'LONG';
                 
                 const dirBadge = isLong 
                     ? `<span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold font-mono">LONG ▲</span>`
