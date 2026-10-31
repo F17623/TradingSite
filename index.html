@@ -106,6 +106,17 @@
 
         <!-- DASHBOARD VIEW -->
         <main id="viewDashboard" class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
+            <!-- НАПОМИНАНИЯ ПО СЧЕТАМ (ПРОДЛЕНИЯ / МИН. СДЕЛКИ) -->
+            <div id="remindersBanner" class="hidden bg-amber-950/30 border border-amber-500/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 rounded-xl bg-amber-500/20 text-amber-400"><i data-lucide="alert-circle" class="w-5 h-5"></i></div>
+                    <div>
+                        <h4 class="text-xs font-bold text-amber-300 uppercase tracking-wider">Важные напоминания по счетам</h4>
+                        <div id="remindersList" class="text-xs text-slate-300 mt-1 flex flex-wrap gap-3"></div>
+                    </div>
+                </div>
+            </div>
+
             <div id="statusBanner" class="p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-slate-900 border-slate-800">
                 <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div class="space-y-1">
@@ -259,7 +270,7 @@
                 </div>
             </div>
 
-            <!-- DETAILED DAY TRADES LIST WITH TAGS AND SCREENSHOTS -->
+            <!-- DETAILED DAY TRADES LIST WITH REAL DB TAGS AND SHOTS -->
             <div id="dayDetailsCard" class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-0">
                 <div class="p-5 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/90">
                     <div class="flex items-center space-x-3">
@@ -268,19 +279,14 @@
                         </div>
                         <div>
                             <h3 id="selectedDayTitle" class="text-base font-bold text-white">Сделки за день</h3>
-                            <p class="text-xs text-slate-400">Разбор сделок с тегами и графиками</p>
+                            <p class="text-xs text-slate-400">Разбор сделок с тегами и графиками из базы</p>
                         </div>
                     </div>
                     
-                    <div id="dayControlsHeader" class="flex items-center gap-3">
-                        <!-- Динамические переключатели рендерятся тут -->
-                    </div>
+                    <div id="dayControlsHeader" class="flex items-center gap-3"></div>
                 </div>
 
-                <!-- LIST OF TRADES WITH EXPANDABLE SNAPSHOTS & TAG INPUTS -->
-                <div id="dayTradesContainer" class="divide-y divide-slate-800/80 p-4 space-y-4">
-                    <!-- Сюда динамически рендерим карточки сделок -->
-                </div>
+                <div id="dayTradesContainer" class="divide-y divide-slate-800/80 p-4 space-y-4"></div>
 
                 <div id="emptyDayTrades" class="hidden p-10 text-center text-slate-500 text-xs">
                     <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-40"></i> За выбранный день сделок не зафиксировано.
@@ -288,17 +294,44 @@
             </div>
         </main>
 
-        <!-- ACCOUNTS VIEW -->
-        <main id="viewAccounts" class="hidden flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
+        <!-- ACCOUNTS & FIRMS VIEW -->
+        <main id="viewAccounts" class="hidden flex-1 max-w-6xl w-full mx-auto p-4 space-y-6">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
-                <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
                     <div class="flex items-center space-x-3">
-                        <div class="p-2 rounded-xl bg-indigo-600/20 text-indigo-400"><i data-lucide="briefcase" class="w-5 h-5"></i></div>
+                        <div class="p-2.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/20"><i data-lucide="briefcase" class="w-5 h-5"></i></div>
                         <div>
                             <h2 class="text-base font-bold text-white">Управление фирмами и счетами</h2>
-                            <p class="text-xs text-slate-400">Apex, Lucid, MyFundedFutures</p>
+                            <p class="text-xs text-slate-400">Отслеживание статусов, сбросов, продлений и минимальных сделок</p>
                         </div>
                     </div>
+                    <div class="flex gap-2">
+                        <button onclick="openFirmModal()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-all flex items-center gap-1.5">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Добавить фирму
+                        </button>
+                        <button onclick="openAccountModal()" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all flex items-center gap-1.5 shadow-lg shadow-indigo-600/20">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Добавить счёт
+                        </button>
+                    </div>
+                </div>
+
+                <div id="accountsTableContainer" class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-950/60 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                            <tr>
+                                <th class="py-3 px-4">Счёт / Фирма</th>
+                                <th class="py-3 px-4">Тип / Статус</th>
+                                <th class="py-3 px-4">Покупка / Траты</th>
+                                <th class="py-3 px-4">Сбросы</th>
+                                <th class="py-3 px-4">Продление / Мин. сделка</th>
+                                <th class="py-3 px-4 text-right">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="accountsTableBody" class="divide-y divide-slate-800/60 font-medium"></tbody>
+                    </table>
+                </div>
+                <div id="emptyAccounts" class="hidden p-8 text-center text-slate-500 text-xs">
+                    <i data-lucide="briefcase" class="w-8 h-8 mx-auto mb-2 opacity-40"></i> Счета еще не заведены в систему.
                 </div>
             </div>
         </main>
@@ -308,14 +341,14 @@
         </footer>
     </div>
 
-    <!-- MODALS -->
+    <!-- MODAL: CONFIRM ACTION -->
     <div id="confirmModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 text-center">
             <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center mx-auto">
                 <i data-lucide="alert-triangle" class="w-6 h-6"></i>
             </div>
-            <h3 class="text-base font-bold text-white">Подтверждение записи в БД</h3>
-            <p id="confirmText" class="text-xs text-slate-400">Вы действительно хотите обновить запись в risk_control?</p>
+            <h3 class="text-base font-bold text-white">Подтверждение действия</h3>
+            <p id="confirmText" class="text-xs text-slate-400"></p>
             <div class="flex gap-2 pt-2">
                 <button onclick="closeConfirmModal()" class="flex-1 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition-all">Отмена</button>
                 <button onclick="executeConfirmedAction()" class="flex-1 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20">Подтвердить</button>
@@ -323,6 +356,7 @@
         </div>
     </div>
 
+    <!-- MODAL: CONFIG SUPABASE -->
     <div id="configModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -340,6 +374,122 @@
         </div>
     </div>
 
+    <!-- MODAL: ADD FIRM -->
+    <div id="firmModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white">Добавить проп-фирму</h3>
+                <button onclick="closeFirmModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form onsubmit="handleCreateFirm(event)" class="space-y-3">
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Название фирмы</label><input type="text" id="firmName" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Сайт</label><input type="text" id="firmWebsite" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Заметки</label><textarea id="firmNotes" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white h-20"></textarea></div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeFirmModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">Отмена</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD ACCOUNT -->
+    <div id="accountModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white">Добавить торговый счёт</h3>
+                <button onclick="closeAccountModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form onsubmit="handleCreateAccount(event)" class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Проп-фирма</label>
+                        <select id="accFirmId" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Номер (как в NinjaTrader)</label>
+                        <input type="text" id="accNumber" required placeholder="например PAAPEX..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Тип</label>
+                        <select id="accKind" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white">
+                            <option value="evaluation">Evaluation (Оценка)</option>
+                            <option value="funded">Funded (Финансируемый)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Статус</label>
+                        <select id="accStatus" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white">
+                            <option value="active">Active</option>
+                            <option value="passed">Passed</option>
+                            <option value="blown">Blown</option>
+                            <option value="closed">Closed</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-3">
+                    <div><label class="block text-xs font-medium text-slate-300 mb-1">Дата покупки</label><input type="date" id="accPurchased" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                    <div><label class="block text-xs font-medium text-slate-300 mb-1">Стоимость ($)</label><input type="number" step="0.01" id="accCost" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                    <div><label class="block text-xs font-medium text-slate-300 mb-1">Инвойс / Ссылка</label><input type="text" id="accInvoiceRef" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                </div>
+                <div class="border-t border-slate-800 pt-3 space-y-3">
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                        <input type="checkbox" id="accIsSub" onchange="toggleSubFields()" class="rounded bg-slate-950 border-slate-800 text-indigo-600">
+                        <span>Подписочный счёт (требует продления)</span>
+                    </label>
+                    <div id="subFieldsContainer" class="hidden grid grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-medium text-slate-300 mb-1">Стоимость продления ($)</label><input type="number" step="0.01" id="accSubCost" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                        <div><label class="block text-xs font-medium text-slate-300 mb-1">Дата продления</label><input type="date" id="accRenewsOn" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                    </div>
+                </div>
+                <div class="border-t border-slate-800 pt-3 space-y-3">
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                        <input type="checkbox" id="accMinTradeReq" onchange="toggleMinTradeFields()" class="rounded bg-slate-950 border-slate-800 text-indigo-600">
+                        <span>Требуется правило минимальной сделки</span>
+                    </label>
+                    <div id="minTradeFieldsContainer" class="hidden grid grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-medium text-slate-300 mb-1">Каждые N дней</label><input type="number" id="accMinDays" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                        <div><label class="block text-xs font-medium text-slate-300 mb-1">Последняя мин. сделка</label><input type="date" id="accLastMinTrade" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                    </div>
+                </div>
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Заметки</label><textarea id="accNotes" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white h-16"></textarea></div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeAccountModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">Отмена</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD RESET -->
+    <div id="resetModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white">Зафиксировать сброс счёта</h3>
+                <button onclick="closeResetModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form onsubmit="handleCreateReset(event)" class="space-y-3">
+                <input type="hidden" id="resetAccountId">
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Дата сброса</label><input type="date" id="resetDate" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Стоимость сброса ($)</label><input type="number" step="0.01" id="resetCost" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Инвойс / Ссылка</label><input type="text" id="resetInvoiceRef" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Заметка</label><input type="text" id="resetNote" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeResetModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">Отмена</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ПЛАВАЮЩАЯ КНОПКА «НАВЕРХ» -->
+    <button onclick="scrollToTop()" id="scrollTopBtn" title="Наверх"
+        class="fixed bottom-6 right-6 z-40 hidden p-3 rounded-2xl bg-indigo-600 text-white shadow-xl shadow-indigo-600/30 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center">
+        <i data-lucide="arrow-up" class="w-5 h-5"></i>
+    </button>
+
     <script>
         const DEFAULT_SUPABASE_URL = 'https://bdcfpihcusurmxsafpfb.supabase.co';
         const DEFAULT_SUPABASE_KEY = 'sb_publishable_fDSDr8EZiRjnTS7l4uFzAA_TeOJeDNu';
@@ -347,7 +497,6 @@
         let supabaseClient = null;
         let isDemoMode = false;
         let pendingActionType = null;
-        let countdownTimer = null;
         let tiltPanelTimer = null;
         let pollInterval = null;
         let currentLimitType = ''; 
@@ -356,17 +505,10 @@
         let allCalendarTrades = [];
         let selectedDayKey = null;
 
-        // По умолчанию отображать скриншоты (сохраняется в браузер)
         let showSnapshots = localStorage.getItem('showSnapshots') !== 'false';
-
-        // Предустановленные теги для автодополнения
-        const PRESET_TAGS = [
-            "3000T", "2000T", "1000T", "5m", "30m", "entry_at_base", 
-            "entry_chasing", "entry_eth", "entry_power_hour", 
-            "close_pre", "close_rth", "correct_exit_10%+"
-        ];
-
-        const mockJournalData = {};
+        let cachedTags = [];
+        let allFirms = [];
+        let allAccountsOverview = [];
 
         function tradingDay(date) {
             const s = date.toLocaleString('sv-SE', { timeZone: 'America/Chicago' });
@@ -394,6 +536,18 @@
             if (session) showApp(); else showLogin();
         });
 
+        window.addEventListener('scroll', () => {
+            const btn = document.getElementById('scrollTopBtn');
+            if (btn) {
+                if (window.scrollY > 300) btn.classList.remove('hidden');
+                else btn.classList.add('hidden');
+            }
+        });
+
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
         function switchTab(tabName) {
             ['dashboard', 'calendar', 'accounts'].forEach(t => {
                 document.getElementById('view' + t.charAt(0).toUpperCase() + t.slice(1)).classList.add('hidden');
@@ -401,7 +555,9 @@
             });
             document.getElementById('view' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).classList.remove('hidden');
             document.getElementById('nav' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).className = "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white shadow-sm transition-all";
+            
             if (tabName === 'calendar') renderCalendar();
+            if (tabName === 'accounts') fetchAccountsData();
             lucide.createIcons();
         }
 
@@ -517,6 +673,8 @@
                 document.getElementById('loginOverlay').classList.add('hidden');
                 document.getElementById('mainApp').classList.remove('hidden');
                 fetchData();
+                fetchTagsList();
+                fetchReminders();
                 startPolling();
             }, 300);
         }
@@ -557,11 +715,34 @@
             }
         }
 
+        async function fetchTagsList() {
+            if (!supabaseClient) return;
+            const { data } = await supabaseClient.from('tags').select('*').order('name');
+            cachedTags = data || [];
+        }
+
+        async function fetchReminders() {
+            if (!supabaseClient) return;
+            const { data } = await supabaseClient.from('account_reminders').select('*').order('days_left');
+            const banner = document.getElementById('remindersBanner');
+            const list = document.getElementById('remindersList');
+            if (!data || data.length === 0) {
+                banner.classList.add('hidden');
+                return;
+            }
+            banner.classList.remove('hidden');
+            list.innerHTML = data.map(r => `
+                <span class="inline-flex items-center gap-1 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-800">
+                    <b>${esc(r.firm)} (${esc(r.number)})</b>: ${r.kind === 'renewal' ? 'продление' : 'мин. сделка'} через <b>${r.days_left} дн.</b> (${r.due_on})
+                </span>
+            `).join('');
+        }
+
         async function fetchData() {
             updateSyncStatus('syncing');
             if (isDemoMode || !supabaseClient) {
                 renderRiskStatus({ full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 });
-                renderTrades([{ trade_no: 104, group_no: 'g1', account_name: 'Sim101', instrument: 'NQ', opened_at: new Date().toISOString(), net_now: 0, cash: 320.50 }]);
+                renderTrades([]);
                 updateSyncStatus('demo');
                 return;
             }
@@ -575,15 +756,39 @@
 
                 if (riskErr) throw riskErr;
 
-                const since = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
-                const { data: tradesData } = await supabaseClient
-                    .from('trade_summary')
-                    .select('*')
-                    .gte('opened_at', since)
-                    .order('opened_at', { ascending: false })
-                    .limit(1000);
+                // Помесячная загрузка для календаря (последние 3 месяца)
+                allCalendarTrades = [];
+                for (let i = 0; i < 3; i++) {
+                    const d = new Date();
+                    d.setMonth(d.getMonth() - i);
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const startStr = `${y}-${m}-01T00:00:00Z`;
+                    const endStr = `${y}-${m}-${new Date(y, d.getMonth()+1, 0).getDate()}T23:59:59Z`;
 
-                allCalendarTrades = (tradesData || []).filter(t => t.opened_at &&
+                    let rangeStart = 0;
+                    let fetchMore = true;
+                    while (fetchMore) {
+                        const { data: chunk } = await supabaseClient
+                            .from('trade_summary')
+                            .select('*')
+                            .gte('opened_at', startStr)
+                            .lte('opened_at', endStr)
+                            .order('opened_at', { ascending: false })
+                            .range(rangeStart, rangeStart + 999);
+
+                        if (chunk && chunk.length > 0) {
+                            allCalendarTrades.push(...chunk);
+                            if (chunk.length < 1000) fetchMore = false;
+                            else rangeStart += 1000;
+                        } else {
+                            fetchMore = false;
+                        }
+                    }
+                }
+
+                // Фильтруем Playback счета
+                allCalendarTrades = allCalendarTrades.filter(t => t.opened_at &&
                     !String(t.account_name || '').toLowerCase().startsWith('playback'));
 
                 const today = tradingDay(new Date());
@@ -735,7 +940,6 @@
             document.getElementById('statActiveTrades').innerText = active;
         }
 
-        // CALENDAR & JOURNAL LOGIC WITH SNAPSHOT TOGGLE & AUTOCOMPLETE TAGS
         function changeMonth(delta) {
             currentCalDate.setMonth(currentCalDate.getMonth() + delta);
             renderCalendar();
@@ -749,12 +953,12 @@
         function toggleSnapshotsMode() {
             showSnapshots = !showSnapshots;
             localStorage.setItem('showSnapshots', showSnapshots);
-            const currentTitle = document.getElementById('selectedDayTitle') ? document.getElementById('selectedDayTitle').innerText : '';
-            renderDayTradesTable(
-                currentTitle, 
-                0, 
-                allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey)
-            );
+            if (selectedDayKey) {
+                const dayTrades = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey);
+                loadAndRenderDayJournal(selectedDayKey, dayTrades);
+            } else {
+                renderCalendar();
+            }
         }
 
         function renderCalendar() {
@@ -766,6 +970,7 @@
 
             const dailyPnLMap = {};
             const dailyTradesMap = {};
+            const dailyDistinctGroups = {};
 
             allCalendarTrades.forEach(t => {
                 if (!t.opened_at) return;
@@ -773,8 +978,10 @@
                 if (!dailyPnLMap[dayKey]) {
                     dailyPnLMap[dayKey] = 0;
                     dailyTradesMap[dayKey] = [];
+                    dailyDistinctGroups[dayKey] = new Set();
                 }
                 dailyTradesMap[dayKey].push(t);
+                if (t.group_no) dailyDistinctGroups[dayKey].add(t.group_no);
                 if (Number(t.net_now) === 0) {
                     dailyPnLMap[dayKey] += Number(t.cash || 0);
                 }
@@ -799,6 +1006,7 @@
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const hasTrades = dailyTradesMap[dateStr] && dailyTradesMap[dateStr].length > 0;
                 const pnl = dailyPnLMap[dateStr] || 0;
+                const groupsCount = hasTrades ? dailyDistinctGroups[dateStr].size : 0;
 
                 const cell = document.createElement('div');
                 let bgClass = "bg-slate-900/60 border-slate-800/80 hover:border-slate-700";
@@ -833,7 +1041,7 @@
                 cell.innerHTML = `
                     <div class="flex items-center justify-between">
                         <span class="text-xs font-mono font-bold text-slate-300">${day}</span>
-                        ${hasTrades ? `<span class="text-[9px] text-slate-500 font-mono">${dailyTradesMap[dateStr].length} сд.</span>` : ''}
+                        ${hasTrades ? `<span class="text-[9px] text-slate-500 font-mono">${groupsCount} сд.</span>` : ''}
                     </div>
                     <div class="text-xs font-mono text-right ${pnlClass}">
                         ${pnlFormatted}
@@ -853,24 +1061,24 @@
             if (!selectedDayKey) {
                 const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
                 const monthTrades = allCalendarTrades.filter(t => t.opened_at && tradingDay(new Date(t.opened_at)).startsWith(monthPrefix));
-                renderDayTradesTable(`Все сделки за ${monthNames[month]} ${year}`, monthPnL, monthTrades);
+                loadAndRenderDayJournal(`Все сделки за ${monthNames[month]} ${year}`, monthPnL, monthTrades);
             }
         }
 
         function selectCalendarDay(dateStr, pnl, trades) {
             selectedDayKey = dateStr;
             renderCalendar();
-            renderDayTradesTable(`Сделки за день ${dateStr}`, pnl, trades);
+            loadAndRenderDayJournal(`Сделки за день ${dateStr}`, pnl, trades);
             document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        function renderDayTradesTable(titleText, pnl, trades) {
+        // ЗАГРУЗКА И СВЯЗКА ДАННЫХ ЖУРНАЛА ИЗ БАЗЫ (trade_journal, tags, trade_shots)
+        async function loadAndRenderDayJournal(titleText, pnl, trades) {
             const titleEl = document.getElementById('selectedDayTitle');
             const container = document.getElementById('dayTradesContainer');
             const emptyState = document.getElementById('emptyDayTrades');
 
             if (titleEl) titleEl.innerText = titleText;
-
             renderHeaderControls(pnl);
 
             container.innerHTML = '';
@@ -880,14 +1088,65 @@
             }
             emptyState.classList.add('hidden');
 
-            trades.forEach((t, idx) => {
-                const cash = Number(t.cash || 0);
-                const isClosed = Number(t.net_now) === 0;
-                const openTime = t.opened_at ? new Date(t.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+            // Группируем строки по group_no
+            const groupsMap = {};
+            trades.forEach(t => {
+                if (!t.group_no) return;
+                if (!groupsMap[t.group_no]) {
+                    groupsMap[t.group_no] = {
+                        group_no: t.group_no,
+                        instrument: t.instrument,
+                        direction: t.direction,
+                        opened_at: t.opened_at,
+                        closed_at: t.closed_at,
+                        net_now: t.net_now,
+                        cash: 0,
+                        rows: []
+                    };
+                }
+                groupsMap[t.group_no].rows.push(t);
+                groupsMap[t.group_no].cash += Number(t.cash || 0);
+                if (Number(t.net_now) !== 0) groupsMap[t.group_no].net_now = t.net_now;
+                if (t.closed_at && (!groupsMap[t.group_no].closed_at || new Date(t.closed_at) > new Date(groupsMap[t.group_no].closed_at))) {
+                    groupsMap[t.group_no].closed_at = t.closed_at;
+                }
+            });
+
+            const groupKeys = Object.keys(groupsMap);
+            let journalDBData = {};
+            let shotsDBData = {};
+            let tagsDBData = {};
+
+            if (supabaseClient && groupKeys.length > 0) {
+                // Убедимся, что записи в trade_journal существуют для этих group_no
+                for (const gKey of groupKeys) {
+                    await supabaseClient.from('trade_journal').upsert({ group_no: Number(gKey) }, { onConflict: 'group_no', ignoreDuplicates: true });
+                }
+
+                // Загружаем теги и скриншоты для этих group_no
+                const { data: jData } = await supabaseClient
+                    .from('trade_journal')
+                    .select('group_no, trade_tags(tags(id, name)), trade_shots(id, storage_path, kind)')
+                    .in('group_no', groupKeys.map(Number));
+
+                if (jData) {
+                    jData.forEach(j => {
+                        tagsDBData[j.group_no] = j.trade_tags ? j.trade_tags.map(tt => tt.tags) : [];
+                        shotsDBData[j.group_no] = j.trade_shots || [];
+                    });
+                }
+            }
+
+            // Рендерим сгруппированные сделки
+            for (const gKey of groupKeys) {
+                const g = groupsMap[gKey];
+                const cash = g.cash;
+                const isClosed = Number(g.net_now) === 0;
+                const openTime = g.opened_at ? new Date(g.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
 
                 let durationStr = '—';
-                if (t.opened_at && t.closed_at) {
-                    const diffMs = new Date(t.closed_at) - new Date(t.opened_at);
+                if (g.opened_at && g.closed_at) {
+                    const diffMs = new Date(g.closed_at) - new Date(g.opened_at);
                     if (diffMs > 0) {
                         const totalSec = Math.floor(diffMs / 1000);
                         const mins = Math.floor(totalSec / 60);
@@ -898,7 +1157,7 @@
                     durationStr = '<span class="text-indigo-400 font-bold">Активна</span>';
                 }
 
-                const isLong = String(t.direction || '').toUpperCase() === 'LONG';
+                const isLong = String(g.direction || '').toUpperCase() === 'LONG' || Number(g.rows[0]?.side) > 0;
                 const dirBadge = isLong 
                     ? `<span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold font-mono">LONG ▲</span>`
                     : `<span class="px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold font-mono">SHORT ▼</span>`;
@@ -906,63 +1165,69 @@
                 const cashClass = !isClosed ? 'text-slate-500' : (cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400'));
                 const cashStr = !isClosed ? '—' : (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
 
-                const gKey = t.group_no || `t_${idx}`;
-                if (!mockJournalData[gKey]) {
-                    const hasShot = (idx % 5 !== 4);
-                    mockJournalData[gKey] = {
-                        tags: idx % 2 === 0 ? ["3000T", "entry_at_base"] : ["1000T", "close_pre"],
-                        snapshot: hasShot ? "image_9b625b.jpg" : null
-                    };
-                }
-
                 const cardDiv = document.createElement('div');
                 cardDiv.className = "bg-slate-950/50 border border-slate-800 rounded-2xl p-4 space-y-3";
                 
+                // Рендер тегов из базы
                 let tagsHtml = '';
-                mockJournalData[gKey].tags.forEach(tag => {
+                const currentTags = tagsDBData[g.group_no] || [];
+                currentTags.forEach(tag => {
                     tagsHtml += `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-mono">
-                        ${esc(tag)} <button onclick="removeTag('${gKey}', '${tag}')" class="hover:text-white">&times;</button>
+                        ${esc(tag.name)} <button type="button" data-group="${g.group_no}" data-tagid="${tag.id}" class="remove-tag-btn hover:text-white">&times;</button>
                     </span>`;
                 });
 
+                // Рендер скриншотов из базы
                 let snapshotHtml = '';
                 if (showSnapshots) {
-                    if (mockJournalData[gKey].snapshot) {
-                        const imgUrl = esc(mockJournalData[gKey].snapshot);
-                        snapshotHtml = `
-                            <div class="mt-3 relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
-                                <div class="bg-slate-900/90 px-3 py-1.5 text-[10px] text-slate-400 flex items-center justify-between border-b border-slate-800">
-                                    <span>Скриншот графика NinjaTrader</span>
-                                    <a href="${imgUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium">
-                                        Открыть оригинал &#8599;
-                                    </a>
+                    const shots = shotsDBData[g.group_no] || [];
+                    if (shots.length > 0) {
+                        snapshotHtml = `<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">`;
+                        for (const shot of shots) {
+                            // Получаем Signed URL на час
+                            let signedUrl = '';
+                            if (supabaseClient) {
+                                const { data: sUrl } = await supabaseClient.storage.from('shots').createSignedUrl(shot.storage_path, 3600);
+                                if (sUrl) signedUrl = sUrl.signedUrl;
+                            }
+                            snapshotHtml += `
+                                <div class="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+                                    <div class="bg-slate-900/90 px-3 py-1.5 text-[10px] text-slate-400 flex items-center justify-between border-b border-slate-800">
+                                        <span>График (${shot.kind})</span>
+                                        <div class="flex items-center gap-2">
+                                            <a href="${signedUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>
+                                            <button type="button" data-shotid="${shot.id}" data-path="${esc(shot.storage_path)}" data-group="${g.group_no}" class="delete-shot-btn text-rose-400 hover:text-rose-300">Удалить</button>
+                                        </div>
+                                    </div>
+                                    <div class="p-2 flex justify-center bg-slate-950">
+                                        <img src="${signedUrl}" alt="Скриншот графика" class="w-full h-auto object-contain rounded-lg max-h-[350px]">
+                                    </div>
                                 </div>
-                                <div class="p-2 flex justify-center bg-slate-950">
-                                    <a href="${imgUrl}" target="_blank" rel="noopener noreferrer" class="block w-full">
-                                        <img src="${imgUrl}" alt="Скриншот графика" class="w-full h-auto object-contain rounded-lg max-h-[600px] hover:opacity-95 transition-opacity">
-                                    </a>
-                                </div>
-                            </div>
-                        `;
+                            `;
+                        }
+                        snapshotHtml += `</div>`;
                     } else {
                         snapshotHtml = `
                             <div class="mt-3 p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
-                                <i data-lucide="camera-off" class="w-5 h-5 opacity-40"></i>
-                                <span>Снимок еще не добавлен. Можно добавить позже.</span>
-                                <button onclick="addMockSnapshot('${gKey}')" class="px-3 py-1 rounded-lg bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 transition-all font-semibold">Добавить образец</button>
+                                <i data-lucide="camera" class="w-5 h-5 opacity-40"></i>
+                                <span>Скриншот не загружен. Загрузить график в сделку:</span>
+                                <input type="file" accept="image/png, image/jpeg, image/webp" data-group="${g.group_no}" class="shot-file-input text-xs text-slate-400 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer">
                             </div>
                         `;
                     }
                 }
 
+                // Счета внутри группы
+                let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.max_qty ? r.net_now : r.max_qty} контр.)`).join(', ');
+
                 cardDiv.innerHTML = `
                     <div class="flex items-center justify-between border-b border-slate-800/60 pb-3">
                         <div class="flex items-center space-x-3">
-                            <span class="px-2.5 py-1 rounded-lg bg-slate-800 font-mono font-bold text-white text-xs">#${esc(t.group_no || (idx + 1))}</span>
+                            <span class="px-2.5 py-1 rounded-lg bg-slate-800 font-mono font-bold text-white text-xs">#${g.group_no}</span>
                             ${dirBadge}
                             <div>
-                                <span class="font-bold text-white text-xs">${esc(t.instrument || 'NQ')}</span>
-                                <span class="text-[11px] text-slate-400 ml-2 font-mono">${esc(t.account_name || '')}</span>
+                                <span class="font-bold text-white text-xs">${esc(g.instrument || 'NQ')}</span>
+                                <span class="text-[11px] text-slate-400 ml-2 font-mono">Счета: ${accountsListStr}</span>
                             </div>
                         </div>
                         <div class="flex items-center space-x-4 text-right">
@@ -978,36 +1243,214 @@
 
                     <div class="flex flex-wrap items-center gap-2 pt-1">
                         <span class="text-[11px] font-semibold text-slate-400 uppercase">Теги:</span>
-                        <div id="tagsList_${gKey}" class="flex flex-wrap items-center gap-1.5">
+                        <div class="flex flex-wrap items-center gap-1.5">
                             ${tagsHtml}
                         </div>
                         <div class="relative inline-block">
-                            <input type="text" id="tagInput_${gKey}" placeholder="+ добавить тег..." 
+                            <input type="text" data-group="${g.group_no}" placeholder="+ добавить тег..." 
                                 autocomplete="off"
                                 data-lpignore="true"
-                                onfocus="showAllTags('${gKey}')"
-                                oninput="handleTagInput(event, '${gKey}')" 
-                                onkeydown="handleTagKeydown(event, '${gKey}')"
-                                onblur="hideTagDropdownSoon('${gKey}')"
-                                class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 w-48">
+                                class="tag-input bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 w-48">
                             
-                            <div id="tagDropdown_${gKey}" class="hidden absolute left-0 mt-1 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-20 max-h-40 overflow-y-auto"></div>
+                            <div class="tag-dropdown hidden absolute left-0 mt-1 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-20 max-h-40 overflow-y-auto"></div>
                         </div>
                     </div>
 
                     ${snapshotHtml}
                 `;
                 container.appendChild(cardDiv);
-            });
+            }
+
+            bindJournalEvents();
             lucide.createIcons();
         }
 
-function renderHeaderControls(pnl) {
+        // ОБРАБОТЧИКИ СОБЫТИЙ ДЛЯ ЖУРНАЛА (БЕЗ INLINE JS)
+        function bindJournalEvents() {
+            // Удаление тегов
+            document.querySelectorAll('.remove-tag-btn').forEach(btn => {
+                btn.onclick = async () => {
+                    const groupNo = btn.getAttribute('data-group');
+                    const tagId = btn.getAttribute('data-tagid');
+                    if (supabaseClient) {
+                        await supabaseClient.from('trade_tags').delete().match({ group_no: groupNo, tag_id: tagId });
+                        reloadCurrentDayJournal();
+                    }
+                };
+            });
+
+            // Инпут тегов с автодополнением и запятой
+            document.querySelectorAll('.tag-input').forEach(input => {
+                const gKey = input.getAttribute('data-group');
+                const dropdown = input.nextElementSibling;
+
+                input.onfocus = () => {
+                    if (!dropdown) return;
+                    dropdown.innerHTML = '';
+                    cachedTags.forEach(tag => {
+                        const div = document.createElement('div');
+                        div.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
+                        div.innerText = tag.name;
+                        div.onmousedown = async (e) => {
+                            e.preventDefault();
+                            await addTagToDB(gKey, tag.name);
+                            dropdown.classList.add('hidden');
+                        };
+                        dropdown.appendChild(div);
+                    });
+                    dropdown.classList.remove('hidden');
+                };
+
+                input.oninput = async (e) => {
+                    const val = e.target.value;
+                    if (val.includes(',')) {
+                        const newTagName = val.replace(/,/g, '').trim();
+                        if (newTagName) await addTagToDB(gKey, newTagName);
+                        e.target.value = '';
+                        dropdown.classList.add('hidden');
+                        return;
+                    }
+                    const q = val.trim().toLowerCase();
+                    const filtered = cachedTags.filter(t => t.name.toLowerCase().includes(q));
+                    dropdown.innerHTML = '';
+                    filtered.forEach(tag => {
+                        const div = document.createElement('div');
+                        div.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
+                        div.innerText = tag.name;
+                        div.onmousedown = async (e) => {
+                            e.preventDefault();
+                            await addTagToDB(gKey, tag.name);
+                            dropdown.classList.add('hidden');
+                        };
+                        dropdown.appendChild(div);
+                    });
+                    dropdown.classList.toggle('hidden', filtered.length === 0);
+                };
+
+                input.onkeydown = async (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const newTagName = input.value.replace(/,/g, '').trim();
+                        if (newTagName) {
+                            await addTagToDB(gKey, newTagName);
+                            input.value = '';
+                            dropdown.classList.add('hidden');
+                        }
+                    }
+                };
+
+                input.onblur = () => {
+                    setTimeout(() => dropdown.classList.add('hidden'), 200);
+                };
+            });
+
+            // Загрузка скриншота на клиент, сжатие в WebP и отправка в Supabase Storage
+            document.querySelectorAll('.shot-file-input').forEach(fileInput => {
+                fileInput.onchange = async (e) => {
+                    const file = e.target.files[0];
+                    const groupNo = fileInput.getAttribute('data-group');
+                    if (!file || !supabaseClient) return;
+
+                    try {
+                        // Сжатие и конвертация в WebP на клиенте
+                        const compressedBlob = await compressImageToWebP(file, 800, 0.8);
+                        const fileName = `${groupNo}/${crypto.randomUUID()}.webp`;
+
+                        const { error: uploadErr } = await supabaseClient.storage.from('shots').upload(fileName, compressedBlob, {
+                            contentType: 'image/webp',
+                            upsert: false
+                        });
+                        if (uploadErr) throw uploadErr;
+
+                        // Запись в trade_shots
+                        await supabaseClient.from('trade_shots').insert({
+                            group_no: Number(groupNo),
+                            storage_path: fileName,
+                            bytes: compressedBlob.size,
+                            kind: 'other'
+                        });
+
+                        reloadCurrentDayJournal();
+                    } catch (err) {
+                        alert('Ошибка загрузки скриншота: ' + err.message);
+                    }
+                };
+            });
+
+            // Удаление скриншота
+            document.querySelectorAll('.delete-shot-btn').forEach(btn => {
+                btn.onclick = async () => {
+                    if (!confirm('Удалить этот скриншот графика?')) return;
+                    const shotId = btn.getAttribute('data-shotid');
+                    const path = btn.getAttribute('data-path');
+                    if (supabaseClient) {
+                        await supabaseClient.storage.from('shots').remove([path]);
+                        await supabaseClient.from('trade_shots').delete().eq('id', shotId);
+                        reloadCurrentDayJournal();
+                    }
+                };
+            });
+        }
+
+        async function addTagToDB(groupNo, tagName) {
+            if (!supabaseClient) return;
+            // Убедимся, что тег есть в таблице tags (upsert)
+            let { data: tagRecord } = await supabaseClient.from('tags').select('id').eq('name', tagName).single();
+            if (!tagRecord) {
+                const { data: newTag, error } = await supabaseClient.from('tags').insert({ name: tagName }).select('id').single();
+                if (error) { alert('Неверное имя тега (до 40 символов, без кавычек и спецсимволов)'); return; }
+                tagRecord = newTag;
+                await fetchTagsList();
+            }
+            // Привязываем к сделки
+            await supabaseClient.from('trade_tags').upsert({ group_no: Number(groupNo), tag_id: tagRecord.id }, { onConflict: 'group_no,tag_id', ignoreDuplicates: true });
+            reloadCurrentDayJournal();
+        }
+
+        function reloadCurrentDayJournal() {
+            if (selectedDayKey) {
+                const dayTrades = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey);
+                loadAndRenderDayJournal(`Сделки за день ${selectedDayKey}`, 0, dayTrades);
+            } else {
+                renderCalendar();
+            }
+        }
+
+        // Клиентское сжатие картинок в WebP
+        function compressImageToWebP(file, maxWidth, quality) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        let w = img.width, h = img.height;
+                        if (w > maxWidth) {
+                            h = Math.round((h * maxWidth) / w);
+                            w = maxWidth;
+                        }
+                        const canvas = document.createElement('canvas');
+                        canvas.width = w;
+                        canvas.height = h;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        canvas.toBlob((blob) => {
+                            if (blob) resolve(blob);
+                            else reject(new Error('Canvas to Blob failed'));
+                        }, 'image/webp', quality);
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function renderHeaderControls(pnl) {
             const cardHeader = document.getElementById('dayControlsHeader');
             if (!cardHeader) return;
 
             const cashFormatted = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
-            // Динамический класс для покраски общей суммы дня в зеленый или красный
             const pnlBadgeClass = pnl > 0 
                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                 : (pnl < 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-800 text-slate-300 border border-slate-700');
@@ -1026,127 +1469,166 @@ function renderHeaderControls(pnl) {
             `;
         }
 
-        function showAllTags(gKey) {
-            const dropdown = document.getElementById(`tagDropdown_${gKey}`);
-            if (!dropdown) return;
-
-            const availableTags = PRESET_TAGS.filter(tag => !mockJournalData[gKey].tags.includes(tag));
-            if (availableTags.length === 0) return;
-
-            dropdown.innerHTML = '';
-            availableTags.forEach(tag => {
-                const item = document.createElement('div');
-                item.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
-                item.innerText = tag;
-                item.onmousedown = (e) => {
-                    e.preventDefault();
-                    if (!mockJournalData[gKey].tags.includes(tag)) {
-                        mockJournalData[gKey].tags.push(tag);
-                    }
-                    document.getElementById(`tagInput_${gKey}`).value = '';
-                    dropdown.classList.add('hidden');
-                    renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
-                };
-                dropdown.appendChild(item);
-            });
-            dropdown.classList.remove('hidden');
+        // ============ УПРАВЛЕНИЕ ФИРМАМИ И СЧЕТАМИ ============
+        async function fetchAccountsData() {
+            if (!supabaseClient) return;
+            const [fRes, aRes] = await Promise.all([
+                supabaseClient.from('firms').select('*').order('name'),
+                supabaseClient.from('accounts_overview').select('*').order('firm')
+            ]);
+            allFirms = fRes.data || [];
+            allAccountsOverview = aRes.data || [];
+            renderAccountsTable();
         }
 
-        function handleTagInput(e, gKey) {
-            const val = e.target.value;
-            const dropdown = document.getElementById(`tagDropdown_${gKey}`);
-            
-            if (val.includes(',')) {
-                const parts = val.split(',');
-                const newTag = parts[0].trim();
-                if (newTag && !mockJournalData[gKey].tags.includes(newTag)) {
-                    mockJournalData[gKey].tags.push(newTag);
-                    if (!PRESET_TAGS.includes(newTag)) PRESET_TAGS.push(newTag);
-                }
-                e.target.value = '';
-                dropdown.classList.add('hidden');
-                renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
+        function renderAccountsTable() {
+            const tbody = document.getElementById('accountsTableBody');
+            const emptyState = document.getElementById('emptyAccounts');
+            tbody.innerHTML = '';
+
+            if (!allAccountsOverview || allAccountsOverview.length === 0) {
+                emptyState.classList.remove('hidden');
                 return;
             }
+            emptyState.classList.add('hidden');
 
-            const query = val.trim().toLowerCase();
-            const matches = PRESET_TAGS.filter(tag => tag.toLowerCase().includes(query) && !mockJournalData[gKey].tags.includes(tag));
-            
-            if (matches.length === 0) {
-                dropdown.classList.add('hidden');
-                return;
-            }
+            allAccountsOverview.forEach(acc => {
+                const statusBadge = acc.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                    acc.status === 'passed' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' :
+                                    acc.status === 'blown' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-slate-800 text-slate-400';
 
-            dropdown.innerHTML = '';
-            matches.forEach(match => {
-                const item = document.createElement('div');
-                item.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
-                item.innerText = match;
-                item.onmousedown = (e) => {
-                    e.preventDefault();
-                    if (!mockJournalData[gKey].tags.includes(match)) {
-                        mockJournalData[gKey].tags.push(match);
-                    }
-                    e.target.value = '';
-                    dropdown.classList.add('hidden');
-                    renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
-                };
-                dropdown.appendChild(item);
+                const resetsBadge = acc.many_resets 
+                    ? `<span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold border border-rose-500/30">${acc.resets} (Много!)</span>` 
+                    : `<span class="px-2 py-0.5 rounded bg-slate-800">${acc.resets}</span>`;
+
+                tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/30 transition-colors";
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-semibold text-white">
+                        ${esc(acc.number)}
+                        <span class="block text-[10px] text-slate-400">${esc(acc.firm)}</span>
+                    </td>
+                    <td class="py-3 px-4">
+                        <span class="px-2 py-0.5 rounded font-mono text-[10px] uppercase ${statusBadge}">${acc.kind} / ${acc.status}</span>
+                    </td>
+                    <td class="py-3 px-4 font-mono">
+                        <div>$${Number(acc.cost || 0).toFixed(2)} <span class="text-[10px] text-slate-500">(покупка)</span></div>
+                        <div class="text-indigo-400 font-bold">Итог: $${Number(acc.total_cost || 0).toFixed(2)}</div>
+                    </td>
+                    <td class="py-3 px-4 font-mono">
+                        <div class="flex items-center gap-2">
+                            ${resetsBadge}
+                            <button onclick="openResetModal(${acc.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-indigo-300">+ сброс</button>
+                        </div>
+                    </td>
+                    <td class="py-3 px-4 font-mono text-[11px] text-slate-300">
+                        <div>Продл: ${acc.renews_on || '—'}</div>
+                        <div class="text-slate-400">Мин.сделка: ${acc.next_min_trade_due || '—'}</div>
+                    </td>
+                    <td class="py-3 px-4 text-right">
+                        <button onclick="deleteAccount(${acc.id})" class="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20" title="Удалить счёт"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
             });
-            dropdown.classList.remove('hidden');
+            lucide.createIcons();
         }
 
-        function handleTagKeydown(e, gKey) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const val = e.target.value.trim().replace(/,/g, '');
-                if (val && !mockJournalData[gKey].tags.includes(val)) {
-                    mockJournalData[gKey].tags.push(val);
-                    if (!PRESET_TAGS.includes(val)) PRESET_TAGS.push(val);
-                    e.target.value = '';
-                    document.getElementById(`tagDropdown_${gKey}`).classList.add('hidden');
-                    renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
-                }
+        // Модалки для фирм и счетов
+        function openFirmModal() { document.getElementById('firmModal').classList.remove('hidden'); }
+        function closeFirmModal() { document.getElementById('firmModal').classList.add('hidden'); }
+
+        async function handleCreateFirm(e) {
+            e.preventDefault();
+            const name = document.getElementById('firmName').value.trim();
+            const website = document.getElementById('firmWebsite').value.trim();
+            const notes = document.getElementById('firmNotes').value.trim();
+
+            if (supabaseClient && name) {
+                const { error } = await supabaseClient.from('firms').insert({ name, website, notes });
+                if (error) { alert('Ошибка: ' + error.message); return; }
+                closeFirmModal();
+                fetchAccountsData();
             }
         }
 
-        function hideTagDropdownSoon(gKey) {
-            setTimeout(() => {
-                const dropdown = document.getElementById(`tagDropdown_${gKey}`);
-                if (dropdown) dropdown.classList.add('hidden');
-            }, 200);
+        function openAccountModal() {
+            const sel = document.getElementById('accFirmId');
+            sel.innerHTML = allFirms.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
+            document.getElementById('accountModal').classList.remove('hidden');
+        }
+        function closeAccountModal() { document.getElementById('accountModal').classList.add('hidden'); }
+
+        function toggleSubFields() {
+            const isSub = document.getElementById('accIsSub').checked;
+            document.getElementById('subFieldsContainer').classList.toggle('hidden', !isSub);
+        }
+        function toggleMinTradeFields() {
+            const req = document.getElementById('accMinTradeReq').checked;
+            document.getElementById('minTradeFieldsContainer').classList.toggle('hidden', !req);
         }
 
-        function removeTag(gKey, tagToRemove) {
-            mockJournalData[gKey].tags = mockJournalData[gKey].tags.filter(t => t !== tagToRemove);
-            renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
+        async function handleCreateAccount(e) {
+            e.preventDefault();
+            const firm_id = Number(document.getElementById('accFirmId').value);
+            const number = document.getElementById('accNumber').value.trim();
+            const kind = document.getElementById('accKind').value;
+            const status = document.getElementById('accStatus').value;
+            const purchased_at = document.getElementById('accPurchased').value || null;
+            const cost = document.getElementById('accCost').value ? Number(document.getElementById('accCost').value) : null;
+            const invoice_ref = document.getElementById('accInvoiceRef').value.trim() || null;
+            const is_subscription = document.getElementById('accIsSub').checked;
+            const subscription_cost = document.getElementById('accSubCost').value ? Number(document.getElementById('accSubCost').value) : null;
+            const renews_on = document.getElementById('accRenewsOn').value || null;
+            const min_trade_required = document.getElementById('accMinTradeReq').checked;
+            const min_trade_every_days = document.getElementById('accMinDays').value ? Number(document.getElementById('accMinDays').value) : null;
+            const last_min_trade_on = document.getElementById('accLastMinTrade').value || null;
+            const notes = document.getElementById('accNotes').value.trim();
+
+            if (supabaseClient && number) {
+                const { error } = await supabaseClient.from('accounts').insert({
+                    firm_id, number, kind, status, purchased_at, cost, invoice_ref,
+                    is_subscription, subscription_cost, renews_on,
+                    min_trade_required, min_trade_every_days, last_min_trade_on, notes
+                });
+                if (error) { alert('Ошибка: ' + error.message); return; }
+                closeAccountModal();
+                fetchAccountsData();
+                fetchReminders();
+            }
         }
 
-        function addMockSnapshot(gKey) {
-            mockJournalData[gKey].snapshot = "image_9b625b.jpg";
-            renderDayTradesTable(document.getElementById('selectedDayTitle').innerText, 0, allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey));
+        function openResetModal(accId) {
+            document.getElementById('resetAccountId').value = accId;
+            document.getElementById('resetDate').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('resetModal').classList.remove('hidden');
+        }
+        function closeResetModal() { document.getElementById('resetModal').classList.add('hidden'); }
+
+        async function handleCreateReset(e) {
+            e.preventDefault();
+            const account_id = Number(document.getElementById('resetAccountId').value);
+            const reset_at = document.getElementById('resetDate').value;
+            const cost = Number(document.getElementById('resetCost').value);
+            const invoice_ref = document.getElementById('resetInvoiceRef').value.trim() || null;
+            const note = document.getElementById('resetNote').value.trim();
+
+            if (supabaseClient) {
+                const { error } = await supabaseClient.from('account_resets').insert({ account_id, reset_at, cost, invoice_ref, note });
+                if (error) { alert('Ошибка: ' + error.message); return; }
+                closeResetModal();
+                fetchAccountsData();
+            }
+        }
+
+        async function deleteAccount(accId) {
+            if (!confirm('Удалить этот счёт из системы?')) return;
+            if (supabaseClient) {
+                await supabaseClient.from('accounts').delete().eq('id', accId);
+                fetchAccountsData();
+                fetchReminders();
+            }
         }
     </script>
-<!-- ПЛАВАЮЩАЯ КНОПКА «НАВЕРХ» -->
-    <button onclick="scrollToTop()" id="scrollTopBtn" title="Наверх"
-        class="fixed bottom-6 right-6 z-40 hidden p-3 rounded-2xl bg-indigo-600 text-white shadow-xl shadow-indigo-600/30 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center">
-        <i data-lucide="arrow-up" class="w-5 h-5"></i>
-    </button>
-
-    <script>
-        // Логика появления и работы кнопки «Наверх»
-        window.addEventListener('scroll', () => {
-            const btn = document.getElementById('scrollTopBtn');
-            if (window.scrollY > 300) {
-                btn.classList.remove('hidden');
-            } else {
-                btn.classList.add('hidden');
-            }
-        });
-
-        function scrollToTop() {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    </script>	
 </body>
 </html>
