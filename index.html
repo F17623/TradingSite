@@ -920,23 +920,30 @@
                     </span>`;
                 });
 
-                // Скриншот (образец или заглушка для каждой 5-й сделки)
+// Скриншот (отображение в полном размере без обрезки)
                 let snapshotHtml = '';
                 if (mockJournalData[gKey].snapshot) {
+                    const imgUrl = esc(mockJournalData[gKey].snapshot);
                     snapshotHtml = `
-                        <div class="mt-3 relative rounded-xl overflow-hidden border border-slate-800 bg-slate-900">
-                            <div class="bg-slate-950/80 px-3 py-1.5 text-[10px] text-slate-400 flex items-center justify-between border-b border-slate-800">
-                                <span>Скриншот входа (Образец терминала NinjaTrader)</span>
-                                <span class="text-indigo-400">group_no: #${esc(t.group_no || '—')}</span>
+                        <div class="mt-3 relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+                            <div class="bg-slate-900/90 px-3 py-1.5 text-[10px] text-slate-400 flex items-center justify-between border-b border-slate-800">
+                                <span>Скриншот входа NinjaTrader</span>
+                                <a href="${imgUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                                    Открыть оригинал &#8599;
+                                </a>
                             </div>
-                            <img src="${mockJournalData[gKey].snapshot}" alt="Скриншот графика" class="w-full h-auto max-h-[350px] object-cover">
+                            <div class="p-2 flex justify-center bg-slate-950">
+                                <a href="${imgUrl}" target="_blank" rel="noopener noreferrer" class="block w-full">
+                                    <img src="${imgUrl}" alt="Скриншот графика" class="w-full h-auto object-contain rounded-lg max-h-[600px] hover:opacity-95 transition-opacity">
+                                </a>
+                            </div>
                         </div>
                     `;
                 } else {
                     snapshotHtml = `
                         <div class="mt-3 p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
                             <i data-lucide="camera-off" class="w-5 h-5 opacity-40"></i>
-                            <span>Снимок еще не добавлен (каждая 5-я сделка). Можно добавить позже.</span>
+                            <span>Снимок еще не добавлен. Можно добавить позже.</span>
                             <button onclick="addMockSnapshot('${gKey}')" class="px-3 py-1 rounded-lg bg-indigo-600/20 text-indigo-400 hover:bg-indigo-600/30 transition-all font-semibold">Добавить образец</button>
                         </div>
                     `;
