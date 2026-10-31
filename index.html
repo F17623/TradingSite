@@ -82,14 +82,14 @@
                         <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Дашборд
                     </button>
                     <button onclick="switchTab('calendar')" id="navCalendar" class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
-                        <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Календарь
+                        <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Календарь и Журнал
                     </button>
                     <button onclick="switchTab('accounts')" id="navAccounts" class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
                         <i data-lucide="briefcase" class="w-3.5 h-3.5"></i> Счета и Учет
                     </button>
                 </nav>
 
-                <!-- CLOCK WIDGET WITH BREAK DETECTION -->
+                <!-- CLOCK WIDGET -->
                 <div class="hidden lg:flex items-center gap-2 bg-slate-900 border border-slate-800/80 px-3 py-1.5 rounded-xl font-mono text-xs">
                     <span id="sessionStatusDot" class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
                     <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
@@ -106,7 +106,6 @@
 
         <!-- DASHBOARD VIEW -->
         <main id="viewDashboard" class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
-
             <!-- RISK STATUS BANNER -->
             <div id="statusBanner" class="p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-slate-900 border-slate-800">
                 <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -130,7 +129,7 @@
                 </div>
             </div>
 
-            <!-- ANTI-TILT & ASIA CONTROL PANEL WITH LIVE COUNTDOWN -->
+            <!-- ANTI-TILT & ASIA CONTROL PANEL -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row items-center justify-between gap-4">
                 <div class="flex items-center space-x-3 w-full lg:w-auto">
                     <div class="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
@@ -148,13 +147,10 @@
                 </div>
 
                 <div id="controlButtonsContainer" class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto transition-opacity">
-                    <!-- Asia Session Button -->
-                    <button id="btnAsia" onclick="confirmAction('asia', 'ВНИМАНИЕ: Заблокировать Азию (с открытия биржи до 00:00 по Ванкуверу)? Отменить нельзя.')" class="px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/20 transition-all flex items-center gap-1.5">
+                    <button id="btnAsia" onclick="confirmAction('asia', 'ВНИМАНИЕ: Заблокировать Азию? Отменить нельзя.')" class="px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/20 transition-all flex items-center gap-1.5">
                         <i data-lucide="moon" class="w-3.5 h-3.5"></i> Блок Азии
                     </button>
-
-                    <!-- 1 Hour Pause -->
-                    <button id="btnDay" onclick="confirmAction('session', 'ВНИМАНИЕ: Закрыть торговлю до конца сессии (17:00 CT)? Отменить нельзя.')" class="px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold hover:bg-rose-500/20 transition-all flex items-center gap-1.5">
+                    <button id="btnDay" onclick="confirmAction('session', 'ВНИМАНИЕ: Закрыть торговлю до конца сессии? Отменить нельзя.')" class="px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold hover:bg-rose-500/20 transition-all flex items-center gap-1.5">
                         <i data-lucide="lock" class="w-3.5 h-3.5"></i> Закрыть день
                     </button>
                     <button id="btnPause" onclick="confirmAction('manual_1h', 'ВНИМАНИЕ: Пауза на 1 час. Отменить нельзя.')" class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-all flex items-center gap-1.5">
@@ -180,7 +176,6 @@
                     <span id="statActiveTrades" class="text-xl font-bold text-indigo-400">0</span>
                     <span class="text-[10px] text-slate-500 mt-auto pt-2">net_now &ne; 0</span>
                 </div>
-                <!-- Dynamic Protection Status Card -->
                 <div id="statProtectionCard" class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col">
                     <span class="text-xs font-medium text-slate-400 mb-1">Режим Защиты</span>
                     <span id="statProtectionTitle" class="text-xl font-bold text-emerald-400 flex items-center gap-1.5">
@@ -215,17 +210,14 @@
                         <tbody id="tradesTableBody" class="divide-y divide-slate-800/60 font-medium"></tbody>
                     </table>
                 </div>
-                <div id="tradesMobileList" class="block md:hidden divide-y divide-slate-800/60"></div>
                 <div id="emptyTrades" class="hidden p-8 text-center text-slate-500 text-xs">
                     <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-40"></i> Сделки еще не зарегистрированы в базе данных.
                 </div>
             </div>
-
         </main>
 
-        <!-- CALENDAR VIEW -->
+        <!-- CALENDAR & JOURNAL VIEW -->
         <main id="viewCalendar" class="hidden flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
-            <!-- CALENDAR HEADER & CONTROLS -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-3">
@@ -233,8 +225,8 @@
                             <i data-lucide="calendar" class="w-5 h-5"></i>
                         </div>
                         <div>
-                            <h2 class="text-base font-bold text-white">Торговый Календарь</h2>
-                            <p class="text-xs text-slate-400">Нажмите на любой день для просмотра списка сделок</p>
+                            <h2 class="text-base font-bold text-white">Торговый Календарь и Журнал</h2>
+                            <p class="text-xs text-slate-400">Нажмите на любой день для просмотра и разбора сделок по group_no</p>
                         </div>
                     </div>
                     <div class="flex items-center space-x-2 bg-slate-950/60 border border-slate-800 p-1.5 rounded-xl">
@@ -244,7 +236,6 @@
                     </div>
                 </div>
 
-                <!-- MONTHLY STATS SUMMARY BANNER -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-slate-800/80">
                     <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/60">
                         <div class="text-[10px] text-slate-400 uppercase font-semibold">P&L за месяц</div>
@@ -264,7 +255,6 @@
                     </div>
                 </div>
 
-                <!-- CALENDAR GRID -->
                 <div class="pt-2">
                     <div class="grid grid-cols-7 gap-1.5 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
                         <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
@@ -273,7 +263,7 @@
                 </div>
             </div>
 
-            <!-- DETAILED DAY TRADES LIST SECTION -->
+            <!-- DETAILED DAY TRADES LIST -->
             <div id="dayDetailsCard" class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-0">
                 <div class="p-5 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/90">
                     <div class="flex items-center space-x-3">
@@ -282,13 +272,13 @@
                         </div>
                         <div>
                             <h3 id="selectedDayTitle" class="text-base font-bold text-white">Сделки за день</h3>
-                            <p class="text-xs text-slate-400">Хронологический порядок исполнения</p>
+                            <p class="text-xs text-slate-400">Хронологический порядок по group_no</p>
                         </div>
                     </div>
                     
                     <div class="flex items-center gap-3">
                         <button onclick="resetDaySelection()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all flex items-center gap-1.5">
-                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Показать все сделки
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Показать весь месяц
                         </button>
                         <span id="selectedDayPnLBadge" class="px-3 py-1.5 rounded-xl text-sm font-bold font-mono bg-slate-800 text-slate-300 border border-slate-700">
                             $0.00
@@ -296,21 +286,18 @@
                     </div>
                 </div>
 
-                <!-- ENHANCED TRADES TABLE -->
                 <div class="overflow-x-auto">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-slate-950/60 text-slate-400 uppercase tracking-wider text-[11px] font-semibold border-b border-slate-800">
                             <tr>
                                 <th class="py-3.5 px-4 text-center w-12">№</th>
-                                <th class="py-3.5 px-4">Время (Вход / Выход)</th>
+                                <th class="py-3.5 px-4">Время / Длительность</th>
                                 <th class="py-3.5 px-4">Направление</th>
                                 <th class="py-3.5 px-4">Инструмент / Счет</th>
                                 <th class="py-3.5 px-4 text-right">Результат (P&L)</th>
                             </tr>
                         </thead>
-                        <tbody id="selectedDayTradesBody" class="divide-y divide-slate-800/60 font-medium">
-                            <!-- Rows will be dynamically injected here -->
-                        </tbody>
+                        <tbody id="selectedDayTradesBody" class="divide-y divide-slate-800/60 font-medium"></tbody>
                     </table>
                 </div>
 
@@ -340,7 +327,7 @@
         </footer>
     </div>
 
-    <!-- CUSTOM CONFIRMATION MODAL -->
+    <!-- MODALS -->
     <div id="confirmModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 text-center">
             <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center mx-auto">
@@ -355,7 +342,6 @@
         </div>
     </div>
 
-    <!-- CONFIG MODAL -->
     <div id="configModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3">
@@ -385,12 +371,10 @@
         let pollInterval = null;
         let currentLimitType = ''; 
 
-        // Глобальное состояние календаря
         let currentCalDate = new Date();
         let allCalendarTrades = [];
         let selectedDayKey = null;
 
-        // Торговый день идёт с 17:00 по Чикаго
         function tradingDay(date) {
             const s = date.toLocaleString('sv-SE', { timeZone: 'America/Chicago' });
             const d = new Date(s.replace(' ', 'T') + 'Z');
@@ -398,7 +382,6 @@
             return d.toISOString().slice(0, 10);
         }
 
-        // Секунд до ближайших 17:00 по Чикаго
         function secondsToNextOpenCT() {
             const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date());
             const g = n => Number(p.find(x => x.type === n).value) % 24;
@@ -407,7 +390,7 @@
             return sec;
         }
 
-        const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const esc = s => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
         lucide.createIcons();
 
@@ -425,13 +408,10 @@
             });
             document.getElementById('view' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).classList.remove('hidden');
             document.getElementById('nav' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).className = "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white shadow-sm transition-all";
-            if (tabName === 'calendar') {
-                renderCalendar();
-            }
+            if (tabName === 'calendar') renderCalendar();
             lucide.createIcons();
         }
 
-        // ЧАСЫ В ШАПКЕ С УЧЕТОМ ТЕХПЕРЕРЫВА CME (16:00 - 17:00 CT)
         function startSessionClock() {
             setInterval(() => {
                 const now = new Date();
@@ -447,31 +427,21 @@
                     const openTime = new Date(ctDate);
                     openTime.setHours(17, 0, 0, 0);
                     const diff = openTime - ctDate;
-
                     const m = String(Math.floor((diff / (1000 * 60)) % 60)).padStart(2, '0');
                     const s = String(Math.floor((diff / 1000) % 60)).padStart(2, '0');
-
                     if (labelEl) labelEl.innerText = "Торги закрыты (перерыв)";
-                    if (timerEl) {
-                        timerEl.innerText = `00:${m}:${s}`;
-                        timerEl.className = "text-amber-400 font-bold";
-                    }
+                    if (timerEl) { timerEl.innerText = `00:${m}:${s}`; timerEl.className = "text-amber-400 font-bold"; }
                     if (dotEl) dotEl.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
                 } else {
                     const closeTime = new Date(ctDate);
                     closeTime.setHours(16, 0, 0, 0);
                     if (currentHour >= 17) closeTime.setDate(closeTime.getDate() + 1);
-
                     const diff = closeTime - ctDate;
                     const h = String(Math.floor((diff / (1000 * 60 * 60)) % 24)).padStart(2, '0');
                     const m = String(Math.floor((diff / (1000 * 60)) % 60)).padStart(2, '0');
                     const s = String(Math.floor((diff / 1000) % 60)).padStart(2, '0');
-
                     if (labelEl) labelEl.innerText = "Futures close";
-                    if (timerEl) {
-                        timerEl.innerText = `${h}:${m}:${s}`;
-                        timerEl.className = "text-cyan-400 font-bold";
-                    }
+                    if (timerEl) { timerEl.innerText = `${h}:${m}:${s}`; timerEl.className = "text-cyan-400 font-bold"; }
                     if (dotEl) dotEl.className = "w-2 h-2 rounded-full bg-cyan-400 animate-pulse";
                 }
             }, 1000);
@@ -479,7 +449,7 @@
 
         function confirmAction(type, message) {
             if (currentLimitType === 'loss' || currentLimitType === 'profit') {
-                alert(`⚠️ Управление заблокировано: сработал системный лимит (${currentLimitType.toUpperCase()}). Изменение режимов недоступно до конца сессии.`);
+                alert(`⚠️ Управление заблокировано: сработал системный лимит (${currentLimitType.toUpperCase()}).`);
                 return;
             }
             pendingActionType = type;
@@ -612,22 +582,22 @@
 
                 if (riskErr) throw riskErr;
 
-                // Подгружаем историю за последние 90 дней для удобства ведения журнала
+                // ИСПРАВЛЕНИЕ АГЕНТА №1: Сортировка по убыванию с лимитом, чтобы свежие сделки не отрезались
                 const since = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
                 const { data: tradesData } = await supabaseClient
                     .from('trade_summary')
                     .select('*')
                     .gte('opened_at', since)
-                    .order('opened_at', { ascending: true }); // Отсортировано хронологически для журнала
+                    .order('opened_at', { ascending: false })
+                    .limit(1000);
 
                 const pb = !!riskData.playback_mode && !!riskData.playback_mode_at &&
                            (Date.now() - new Date(riskData.playback_mode_at).getTime()) < 180000;
                 
-                // Фильтруем данные для глобального состояния календаря
+                // ИСПРАВЛЕНИЕ АГЕНТА №8: Исключаем Playback из постоянного журнала
                 allCalendarTrades = (tradesData || []).filter(t => t.opened_at &&
-                    String(t.account_name || '').toLowerCase().startsWith('playback') === pb);
+                    !String(t.account_name || '').toLowerCase().startsWith('playback'));
 
-                // Фильтруем сделки только за текущий торговый день для дашборда
                 const today = tradingDay(new Date());
                 const todayRows = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === today);
 
@@ -641,7 +611,9 @@
             }
         }
 
-        function startPolling() { if (!pollInterval) pollInterval = setInterval(fetchData, 5000); }
+        function startPolling() { 
+            if (!pollInterval) pollInterval = setInterval(fetchData, 10000); // Увеличен интервал до 10с для защиты ввода
+        }
         function stopPolling() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
 
         function updateSyncStatus(state) {
@@ -655,7 +627,6 @@
 
         function renderRiskStatus(risk) {
             if (!risk) risk = { full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 };
-
             currentLimitType = risk.limit_type || '';
 
             document.getElementById('lossLimitVal').innerText = `$${Number(risk.loss_limit || -1000).toLocaleString('en-US')}`;
@@ -665,19 +636,14 @@
             const badge = document.getElementById('bannerBadge');
             const title = document.getElementById('bannerTitle');
             const desc = document.getElementById('bannerDesc');
-
             const statCard = document.getElementById('statProtectionCard');
             const statTitle = document.getElementById('statProtectionTitle');
             const statSub = document.getElementById('statProtectionSub');
-
             const buttonsContainer = document.getElementById('controlButtonsContainer');
             const subText = document.getElementById('panelSubText');
             const tiltBadge = document.getElementById('tiltTimerBadge');
 
-            if (tiltPanelTimer) {
-                clearInterval(tiltPanelTimer);
-                tiltPanelTimer = null;
-            }
+            if (tiltPanelTimer) { clearInterval(tiltPanelTimer); tiltPanelTimer = null; }
 
             if (currentLimitType === 'loss' || currentLimitType === 'profit') {
                 buttonsContainer.style.opacity = '0.4';
@@ -691,8 +657,6 @@
                 let st = "Управление режимами в risk_control";
                 if (maxT) {
                     st = `Сделок сегодня: ${nT} из ${maxT} · пик дня ${pk >= 0 ? '+$' : '-$'}${Math.abs(pk).toFixed(0)}`;
-                    const startAt = Number(risk.trail_start_pct || 0.5) * Number(risk.profit_limit || 1000);
-                    if (pk >= startAt) st += ` · защита прибыли на +$${(pk * (1 - Number(risk.trail_giveback_pct || 0.3))).toFixed(0)}`;
                 }
                 subText.innerText = st;
                 subText.className = "text-[11px] text-slate-400";
@@ -701,17 +665,9 @@
             if (risk.full_stop || currentLimitType) {
                 tiltBadge.classList.remove('hidden');
                 const tick = () => {
-                    let sec;
-                    if (currentLimitType === 'break' || currentLimitType === 'session') {
-                        sec = risk.unlock_at ? Math.floor((new Date(risk.unlock_at).getTime() - Date.now()) / 1000) : 0;
-                    } else if (currentLimitType === 'asia') {
-                        sec = risk.asia_until ? Math.floor((new Date(risk.asia_until).getTime() - Date.now()) / 1000) : 0;
-                    } else {
-                        sec = secondsToNextOpenCT();
-                    }
+                    let sec = secondsToNextOpenCT();
                     if (sec <= 0) {
                         tiltBadge.innerText = "00:00:00";
-                        tiltBadge.className = "px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
                         if (tiltPanelTimer) { clearInterval(tiltPanelTimer); tiltPanelTimer = null; }
                         return;
                     }
@@ -719,7 +675,6 @@
                     const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
                     const ss = String(sec % 60).padStart(2, '0');
                     tiltBadge.innerText = `${hh}:${mm}:${ss}`;
-                    tiltBadge.className = "px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30";
                 };
                 tick();
                 tiltPanelTimer = setInterval(tick, 1000);
@@ -727,87 +682,32 @@
                 tiltBadge.classList.add('hidden');
             }
 
-            if (countdownTimer) {
-                clearInterval(countdownTimer);
-                countdownTimer = null;
-            }
-
             if (!risk.full_stop && !currentLimitType) {
-                banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-emerald-950/35 border-emerald-500/30 shadow-lg shadow-emerald-950/20";
+                banner.className = "p-5 rounded-2xl border bg-emerald-950/35 border-emerald-500/30 shadow-lg shadow-emerald-950/20";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
                 badge.innerText = "ALLOW";
                 title.innerText = "ТОРГОВЛЯ РАЗРЕШЕНА";
                 title.className = "text-2xl font-black tracking-tight text-emerald-400 pt-1";
                 desc.innerText = "Все лимиты рисков в норме. Контроллер готов принимать ордера.";
-
                 if (statCard) {
                     statTitle.innerHTML = `<i data-lucide="shield-check" class="w-5 h-5 inline mr-1"></i><span class="text-emerald-400">АКТИВЕН</span>`;
                     statSub.innerText = "Без кнопки сброса";
                 }
             } else {
-                if (currentLimitType === 'break') {
-                    banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
-                    badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
-                    badge.innerText = "COOLDOWN PAUSE (1H)";
-                    title.innerText = "ПАУЗА ОТ ТИЛЬТА (1 ЧАС)";
-                    title.className = "text-2xl font-black tracking-tight text-amber-300 pt-1";
-                    desc.innerText = "Временный тайм-аут активирован для охлаждения эмоционального состояния.";
-
-                    if (statCard) {
-                        statTitle.innerHTML = `<i data-lucide="timer" class="w-5 h-5 inline mr-1"></i><span class="text-amber-400">ПАУЗА 1Ч</span>`;
-                        statSub.innerText = "Охлаждение тильта";
-                    }
-                } else if (currentLimitType === 'session' || currentLimitType === 'trail' || currentLimitType === 'count') {
-                    const nm = {
-                        session: ['DAY CLOSED', 'ТОРГОВЛЯ ЗАКРЫТА ДО КОНЦА СЕССИИ', 'ДЕНЬ ЗАКРЫТ', 'До конца сессии'],
-                        trail:   ['PROFIT GIVEBACK', 'ОТДАЛ ЧАСТЬ ПРИБЫЛИ: ДЕНЬ ЗАКРЫТ', 'ЗАЩИТА ПРИБЫЛИ', 'Откат от пика дня'],
-                        count:   ['TRADE LIMIT', 'ЛИМИТ СДЕЛОК: ДЕНЬ ЗАКРЫТ', 'ЛИМИТ СДЕЛОК', 'Слишком много сделок']
-                    }[currentLimitType];
-                    banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
-                    badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
-                    badge.innerText = nm[0];
-                    title.innerText = nm[1];
-                    title.className = "text-2xl font-black tracking-tight text-amber-300 pt-1";
-                    desc.innerText = (risk.lock_text ? risk.lock_text + '. ' : '') + 'Блокировка снимается в 17:00 CT.';
-
-                    if (statCard) {
-                        statTitle.innerHTML = `<i data-lucide="lock" class="w-5 h-5 inline mr-1"></i><span class="text-amber-400">${nm[2]}</span>`;
-                        statSub.innerText = nm[3];
-                    }
-                } else if (currentLimitType === 'asia') {
-                    banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-indigo-950/40 border-indigo-500/40 shadow-lg shadow-indigo-950/30";
-                    badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30";
-                    badge.innerText = "ASIA LOCK";
-                    title.innerText = "БЛОКИРОВКА АЗИАТСКОЙ СЕССИИ";
-                    title.className = "text-2xl font-black tracking-tight text-indigo-300 pt-1";
-                    desc.innerText = "Азиатская сессия заблокирована: с открытия биржи до 00:00 по Ванкуверу.";
-
-                    if (statCard) {
-                        statTitle.innerHTML = `<i data-lucide="moon" class="w-5 h-5 inline mr-1"></i><span class="text-indigo-400">БЛОК АЗИИ</span>`;
-                        statSub.innerText = "Ночное ограничение";
-                    }
-                } else {
-                    banner.className = "p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-rose-950/40 border-rose-500/40 shadow-lg shadow-rose-950/30";
-                    badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-subtle-pulse";
-                    badge.innerText = currentLimitType ? currentLimitType.toUpperCase() + " STOP" : "SESSION STOP";
-                    title.innerText = "ДОСТИГНУТ ЛИМИТ / СТОП";
-                    title.className = "text-2xl font-black tracking-tight text-rose-400 pt-1";
-                    desc.innerText = `Принудительная остановка сессии активирована (${currentLimitType || 'limit'}). Торговля закрыта.`;
-
-                    if (statCard) {
-                        statTitle.innerHTML = `<i data-lucide="stop-circle" class="w-5 h-5 inline mr-1"></i><span class="text-rose-400">СТОП СЕССИИ</span>`;
-                        statSub.innerText = "Заблокировано";
-                    }
-                }
+                banner.className = "p-5 rounded-2xl border bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
+                badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
+                badge.innerText = currentLimitType.toUpperCase() + " STOP";
+                title.innerText = "ЗАЩИТА АКТИВНА";
+                title.className = "text-2xl font-black tracking-tight text-amber-300 pt-1";
+                desc.innerText = "Торговля остановлена контроллером.";
             }
             lucide.createIcons();
         }
 
         function renderTrades(trades) {
             const tbody = document.getElementById('tradesTableBody');
-            const mobileList = document.getElementById('tradesMobileList');
             const emptyState = document.getElementById('emptyTrades');
-            tbody.innerHTML = ''; mobileList.innerHTML = '';
+            tbody.innerHTML = '';
 
             if (!trades || trades.length === 0) {
                 emptyState.classList.remove('hidden');
@@ -828,7 +728,7 @@
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-800/30 transition-colors";
                 tr.innerHTML = `
-                    <td class="py-3 px-4 font-semibold text-white">#${t.trade_no || '—'}<span class="block text-[10px] text-slate-500">${esc(t.account_name || '')}</span></td>
+                    <td class="py-3 px-4 font-semibold text-white">#${esc(t.group_no || t.trade_no)}<span class="block text-[10px] text-slate-500">${esc(t.account_name || '')}</span></td>
                     <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-slate-800 font-mono text-[11px]">${esc(t.instrument || 'NQ')}</span></td>
                     <td class="py-3 px-4 text-slate-400">${openTime}</td>
                     <td class="py-3 px-4">${isClosed ? 'Закрыта' : '<span class="text-indigo-400 font-bold">Открыта</span>'}</td>
@@ -849,10 +749,7 @@
             document.getElementById('statActiveTrades').innerText = active;
         }
 
-        // ==========================================
-        // ЛОГИКА ТОРГОВОГО КАЛЕНДАРЯ И ЖУРНАЛА
-        // ==========================================
-
+        // CALENDAR & JOURNAL LOGIC
         function changeMonth(delta) {
             currentCalDate.setMonth(currentCalDate.getMonth() + delta);
             renderCalendar();
@@ -870,7 +767,6 @@
 
             document.getElementById('calendarMonthLabel').innerText = `${monthNames[month]} ${year}`;
 
-            // Группировка всех сделок по торговым дням
             const dailyPnLMap = {};
             const dailyTradesMap = {};
 
@@ -887,25 +783,21 @@
                 }
             });
 
-            // Расчет первого дня недели и дней в месяце
             const firstDayIndex = new Date(year, month, 1).getDay();
-            const startDayOffset = (firstDayIndex === 0 ? 6 : firstDayIndex - 1); // Понедельник = 0
+            const startDayOffset = (firstDayIndex === 0 ? 6 : firstDayIndex - 1);
             const daysInMonth = new Date(year, month + 1, 0).getDate();
 
             const grid = document.getElementById('calendarGrid');
             grid.innerHTML = '';
 
-            // Статистика месяца
             let monthPnL = 0, tradingDaysCount = 0, winDaysCount = 0, lossDaysCount = 0;
 
-            // Пустые ячейки смещения
             for (let i = 0; i < startDayOffset; i++) {
                 const emptyCell = document.createElement('div');
                 emptyCell.className = "h-20 rounded-xl bg-slate-950/20 border border-slate-900/40";
                 grid.appendChild(emptyCell);
             }
 
-            // Рендер дней месяца
             for (let day = 1; day <= daysInMonth; day++) {
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 const hasTrades = dailyTradesMap[dateStr] && dailyTradesMap[dateStr].length > 0;
@@ -953,7 +845,6 @@
                 grid.appendChild(cell);
             }
 
-            // Обновление баннера месячных показателей
             const monthPnLEl = document.getElementById('calMonthPnL');
             monthPnLEl.innerText = (monthPnL >= 0 ? '+$' : '-$') + Math.abs(monthPnL).toFixed(2);
             monthPnLEl.className = `text-base font-bold font-mono ${monthPnL > 0 ? 'text-emerald-400' : (monthPnL < 0 ? 'text-rose-400' : 'text-slate-300')}`;
@@ -962,7 +853,6 @@
             document.getElementById('calWinDays').innerText = winDaysCount;
             document.getElementById('calLossDays').innerText = lossDaysCount;
 
-            // Если не выбран день, показываем все доступные сделки за этот месяц
             if (!selectedDayKey) {
                 const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
                 const monthTrades = allCalendarTrades.filter(t => t.opened_at && tradingDay(new Date(t.opened_at)).startsWith(monthPrefix));
@@ -972,24 +862,20 @@
 
         function selectCalendarDay(dateStr, pnl, trades) {
             selectedDayKey = dateStr;
-            renderCalendar(); // Обновить выделение рамки
+            renderCalendar();
             renderDayTradesTable(`Сделки за день ${dateStr}`, pnl, trades);
-
-            // Плавный скролл к таблице сделок дня
             document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-function renderDayTradesTable(titleText, pnl, trades) {
+        function renderDayTradesTable(titleText, pnl, trades) {
             const titleEl = document.getElementById('selectedDayTitle');
             const badgeEl = document.getElementById('selectedDayPnLBadge');
             const tbody = document.getElementById('selectedDayTradesBody');
             const emptyState = document.getElementById('emptyDayTrades');
 
             titleEl.innerText = titleText;
-            
             const cashFormatted = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
             badgeEl.innerText = cashFormatted;
-            badgeEl.className = `px-3 py-1.5 rounded-xl text-sm font-bold font-mono ${pnl > 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : (pnl < 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-800 text-slate-300 border border-slate-700')}`;
 
             tbody.innerHTML = '';
             if (!trades || trades.length === 0) {
@@ -1001,11 +887,8 @@ function renderDayTradesTable(titleText, pnl, trades) {
             trades.forEach((t, idx) => {
                 const cash = Number(t.cash || 0);
                 const isClosed = Number(t.net_now) === 0;
-                
-                // Время входа
                 const openTime = t.opened_at ? new Date(t.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
 
-                // Расчет длительности сделки (используем closed_at из новой вьюхи)
                 let durationStr = '—';
                 if (t.opened_at && t.closed_at) {
                     const diffMs = new Date(t.closed_at) - new Date(t.opened_at);
@@ -1019,9 +902,7 @@ function renderDayTradesTable(titleText, pnl, trades) {
                     durationStr = '<span class="text-indigo-400 font-bold">Активна</span>';
                 }
 
-                // Направление берем прямо из нового поля direction ('LONG' или 'SHORT')
                 const isLong = String(t.direction || '').toUpperCase() === 'LONG';
-                
                 const dirBadge = isLong 
                     ? `<span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold font-mono">LONG ▲</span>`
                     : `<span class="px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold font-mono">SHORT ▼</span>`;
@@ -1032,7 +913,7 @@ function renderDayTradesTable(titleText, pnl, trades) {
                 const tr = document.createElement('tr');
                 tr.className = "hover:bg-slate-800/40 transition-colors";
                 tr.innerHTML = `
-                    <td class="py-3.5 px-4 text-center font-bold font-mono text-slate-400">#${idx + 1}</td>
+                    <td class="py-3.5 px-4 text-center font-bold font-mono text-slate-400">#${esc(t.group_no || (idx + 1))}</td>
                     <td class="py-3.5 px-4 font-mono text-xs">
                         <span class="text-white font-semibold">${openTime}</span>
                         <span class="text-slate-500 mx-2">⏱</span>
@@ -1048,7 +929,7 @@ function renderDayTradesTable(titleText, pnl, trades) {
                 tbody.appendChild(tr);
             });
             lucide.createIcons();
-        }         
+        }
     </script>
 </body>
 </html>
