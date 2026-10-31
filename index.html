@@ -225,10 +225,86 @@
 
         <!-- CALENDAR VIEW -->
         <main id="viewCalendar" class="hidden flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 text-center space-y-4">
-                <div class="w-12 h-12 rounded-2xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center mx-auto"><i data-lucide="calendar" class="w-6 h-6"></i></div>
-                <h2 class="text-lg font-bold text-white">Календарь торговой производительности</h2>
-                <p class="text-xs text-slate-400 max-w-md mx-auto">Месячная сетка с агрегированным P&L по дням.</p>
+            <!-- CALENDAR HEADER & CONTROLS -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/20">
+                            <i data-lucide="calendar" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-base font-bold text-white">Торговый Календарь</h2>
+                            <p class="text-xs text-slate-400">Агрегированный P&L по дням и галерея скриншотов</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-slate-950/60 border border-slate-800 p-1.5 rounded-xl">
+                        <button onclick="changeMonth(-1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                        <span id="calendarMonthLabel" class="text-xs font-bold text-white font-mono px-2">Октябрь 2026</span>
+                        <button onclick="changeMonth(1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+
+                <!-- MONTHLY STATS SUMMARY BANNER -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-slate-800/80">
+                    <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/60">
+                        <div class="text-[10px] text-slate-400 uppercase font-semibold">P&L за месяц</div>
+                        <div id="calMonthPnL" class="text-base font-bold text-emerald-400 font-mono">+$0.00</div>
+                    </div>
+                    <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/60">
+                        <div class="text-[10px] text-slate-400 uppercase font-semibold">Торговых дней</div>
+                        <div id="calTradingDays" class="text-base font-bold text-white font-mono">0</div>
+                    </div>
+                    <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/60">
+                        <div class="text-[10px] text-slate-400 uppercase font-semibold">Прибыльных дней</div>
+                        <div id="calWinDays" class="text-base font-bold text-emerald-400 font-mono">0</div>
+                    </div>
+                    <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/60">
+                        <div class="text-[10px] text-slate-400 uppercase font-semibold">Убыточных дней</div>
+                        <div id="calLossDays" class="text-base font-bold text-rose-400 font-mono">0</div>
+                    </div>
+                </div>
+
+                <!-- CALENDAR GRID -->
+                <div class="pt-2">
+                    <div class="grid grid-cols-7 gap-1.5 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+                    </div>
+                    <div id="calendarGrid" class="grid grid-cols-7 gap-1.5"></div>
+                </div>
+            </div>
+
+            <!-- SELECTED DAY DETAILS & SCREENSHOTS GALLERY -->
+            <div id="dayDetailsCard" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="image" class="w-4 h-4 text-indigo-400"></i>
+                        <h3 id="selectedDayTitle" class="text-sm font-bold text-white uppercase tracking-wider">Детали и Галерея за день</h3>
+                    </div>
+                    <span id="selectedDayPnLBadge" class="px-2.5 py-1 rounded-lg text-xs font-bold font-mono bg-slate-800 text-slate-300">
+                        $0.00
+                    </span>
+                </div>
+
+                <!-- TRADES LIST FOR SELECTED DAY -->
+                <div>
+                    <h4 class="text-xs font-semibold text-slate-400 uppercase mb-2">Сделки дня</h4>
+                    <div id="selectedDayTradesList" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+                        <p class="text-xs text-slate-500">Выберите день в календаре для просмотра сделок.</p>
+                    </div>
+                </div>
+
+                <!-- SCREENSHOTS SNAPSHOTS GALLERY -->
+                <div class="pt-2 border-t border-slate-800/80">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-xs font-semibold text-slate-400 uppercase">Скриншоты и графики входов (Snapshots)</h4>
+                    </div>
+                    <div id="dayScreenshotsGallery" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="bg-slate-950/60 border border-slate-800 border-dashed rounded-xl p-6 text-center text-slate-500 text-xs">
+                            <i data-lucide="camera" class="w-6 h-6 mx-auto mb-1 opacity-40"></i>
+                            Скриншоты входов отсутствуют для выбранного дня
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
 
@@ -297,6 +373,11 @@
         let pollInterval = null;
         let currentLimitType = ''; 
 
+        // Глобальное состояние календаря
+        let currentCalDate = new Date();
+        let allCalendarTrades = [];
+        let selectedDayKey = null;
+
         // Торговый день идёт с 17:00 по Чикаго
         function tradingDay(date) {
             const s = date.toLocaleString('sv-SE', { timeZone: 'America/Chicago' });
@@ -304,7 +385,8 @@
             d.setUTCHours(d.getUTCHours() + 7);
             return d.toISOString().slice(0, 10);
         }
-        // Секунд до ближайших 17:00 по Чикаго (когда снимается блокировка по лимиту)
+
+        // Секунд до ближайших 17:00 по Чикаго
         function secondsToNextOpenCT() {
             const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date());
             const g = n => Number(p.find(x => x.type === n).value) % 24;
@@ -331,6 +413,9 @@
             });
             document.getElementById('view' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).classList.remove('hidden');
             document.getElementById('nav' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).className = "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white shadow-sm transition-all";
+            if (tabName === 'calendar') {
+                renderCalendar();
+            }
             lucide.createIcons();
         }
 
@@ -347,7 +432,6 @@
                 const dotEl = document.getElementById('sessionStatusDot');
 
                 if (currentHour === 16) {
-                    // Перерыв CME (16:00 - 17:00 CT)
                     const openTime = new Date(ctDate);
                     openTime.setHours(17, 0, 0, 0);
                     const diff = openTime - ctDate;
@@ -362,7 +446,6 @@
                     }
                     if (dotEl) dotEl.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
                 } else {
-                    // Обычная торговая сессия (до 16:00 CT)
                     const closeTime = new Date(ctDate);
                     closeTime.setHours(16, 0, 0, 0);
                     if (currentHour >= 17) closeTime.setDate(closeTime.getDate() + 1);
@@ -517,23 +600,28 @@
 
                 if (riskErr) throw riskErr;
 
-                const since = new Date(Date.now() - 36 * 3600 * 1000).toISOString();
+                // Подгружаем историю за последние 60 дней для календаря
+                const since = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString();
                 const { data: tradesData } = await supabaseClient
                     .from('trade_summary')
                     .select('*')
                     .gte('opened_at', since)
                     .order('opened_at', { ascending: false });
 
-                // Только текущий торговый день (с 17:00 CT) и только нужный режим: настоящие счета или Playback
                 const pb = !!riskData.playback_mode && !!riskData.playback_mode_at &&
                            (Date.now() - new Date(riskData.playback_mode_at).getTime()) < 180000;
-                const today = tradingDay(new Date());
-                const rows = (tradesData || []).filter(t => t.opened_at &&
-                    tradingDay(new Date(t.opened_at)) === today &&
+                
+                // Фильтруем данные для глобального состояния календаря
+                allCalendarTrades = (tradesData || []).filter(t => t.opened_at &&
                     String(t.account_name || '').toLowerCase().startsWith('playback') === pb);
 
+                // Фильтруем сделки только за текущий торговый день для дашборда
+                const today = tradingDay(new Date());
+                const todayRows = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === today);
+
                 renderRiskStatus(riskData);
-                renderTrades(rows);
+                renderTrades(todayRows);
+                renderCalendar();
                 updateSyncStatus('success');
             } catch (err) {
                 console.error('Ошибка чтения из базы:', err);
@@ -553,7 +641,7 @@
             else { dot.className = "w-1.5 h-1.5 rounded-full bg-rose-500"; text.innerText = "Ошибка сети"; }
         }
 
-    function renderRiskStatus(risk) {
+        function renderRiskStatus(risk) {
             if (!risk) risk = { full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 };
 
             currentLimitType = risk.limit_type || '';
@@ -579,7 +667,6 @@
                 tiltPanelTimer = null;
             }
 
-            // Блокировка кнопок при системных лимитах (loss / profit)
             if (currentLimitType === 'loss' || currentLimitType === 'profit') {
                 buttonsContainer.style.opacity = '0.4';
                 buttonsContainer.style.pointerEvents = 'none';
@@ -599,10 +686,8 @@
                 subText.className = "text-[11px] text-slate-400";
             }
 
-            // СИНХРОНИЗИРОВАННЫЙ РАСЧЕТ ТАЙМЕРА ДЛЯ ПАНЕЛИ
             if (risk.full_stop || currentLimitType) {
                 tiltBadge.classList.remove('hidden');
-                // Таймер до снятия блокировки: ручные по unlock_at / концу Азии, лимит до 17:00 CT
                 const tick = () => {
                     let sec;
                     if (currentLimitType === 'break' || currentLimitType === 'session') {
@@ -750,6 +835,203 @@
             document.getElementById('statTotalTrades').innerText = total;
             document.getElementById('statWinRate').innerText = `Win Rate: ${winRate}%`;
             document.getElementById('statActiveTrades').innerText = active;
+        }
+
+        // ==========================================
+        // ЛОГИКА ТОРГОВОГО КАЛЕНДАРЯ И ГАЛЕРЕИ
+        // ==========================================
+
+        function changeMonth(delta) {
+            currentCalDate.setMonth(currentCalDate.getMonth() + delta);
+            renderCalendar();
+        }
+
+        function renderCalendar() {
+            const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+            const year = currentCalDate.getFullYear();
+            const month = currentCalDate.getMonth();
+
+            document.getElementById('calendarMonthLabel').innerText = `${monthNames[month]} ${year}`;
+
+            // Группировка всех сделок по торговым дням
+            const dailyPnLMap = {};
+            const dailyTradesMap = {};
+
+            allCalendarTrades.forEach(t => {
+                if (!t.opened_at) return;
+                const dayKey = tradingDay(new Date(t.opened_at));
+                if (!dailyPnLMap[dayKey]) {
+                    dailyPnLMap[dayKey] = 0;
+                    dailyTradesMap[dayKey] = [];
+                }
+                dailyTradesMap[dayKey].push(t);
+                if (Number(t.net_now) === 0) {
+                    dailyPnLMap[dayKey] += Number(t.cash || 0);
+                }
+            });
+
+            // Расчет первого дня недели и дней в месяце
+            const firstDayIndex = new Date(year, month, 1).getDay();
+            const startDayOffset = (firstDayIndex === 0 ? 6 : firstDayIndex - 1); // Понедельник = 0
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+
+            // Статистика месяца
+            let monthPnL = 0, tradingDaysCount = 0, winDaysCount = 0, lossDaysCount = 0;
+
+            // Пустые ячейки смещения
+            for (let i = 0; i < startDayOffset; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = "h-20 rounded-xl bg-slate-950/20 border border-slate-900/40";
+                grid.appendChild(emptyCell);
+            }
+
+            // Рендер дней месяца
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const hasTrades = dailyTradesMap[dateStr] && dailyTradesMap[dateStr].length > 0;
+                const pnl = dailyPnLMap[dateStr] || 0;
+
+                const cell = document.createElement('div');
+                let bgClass = "bg-slate-900/60 border-slate-800/80 hover:border-slate-700";
+                let pnlClass = "text-slate-500";
+
+                if (hasTrades) {
+                    tradingDaysCount++;
+                    monthPnL += pnl;
+                    if (pnl > 0) {
+                        winDaysCount++;
+                        bgClass = "bg-emerald-950/30 border-emerald-500/30 hover:border-emerald-500/60";
+                        pnlClass = "text-emerald-400 font-bold";
+                    } else if (pnl < 0) {
+                        lossDaysCount++;
+                        bgClass = "bg-rose-950/30 border-rose-500/30 hover:border-rose-500/60";
+                        pnlClass = "text-rose-400 font-bold";
+                    } else {
+                        bgClass = "bg-slate-800/40 border-slate-700";
+                        pnlClass = "text-slate-300 font-bold";
+                    }
+                }
+
+                if (selectedDayKey === dateStr) {
+                    bgClass += " ring-2 ring-indigo-500 shadow-lg shadow-indigo-500/10";
+                }
+
+                cell.className = `h-20 rounded-xl border p-2 flex flex-col justify-between cursor-pointer transition-all ${bgClass}`;
+                cell.onclick = () => selectCalendarDay(dateStr, pnl, dailyTradesMap[dateStr] || []);
+
+                const pnlFormatted = hasTrades ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
+
+                cell.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-mono font-bold text-slate-300">${day}</span>
+                        ${hasTrades ? `<span class="text-[9px] text-slate-500 font-mono">${dailyTradesMap[dateStr].length} сд.</span>` : ''}
+                    </div>
+                    <div class="text-xs font-mono text-right ${pnlClass}">
+                        ${pnlFormatted}
+                    </div>
+                `;
+                grid.appendChild(cell);
+            }
+
+            // Обновление баннера месячных показателей
+            const monthPnLEl = document.getElementById('calMonthPnL');
+            monthPnLEl.innerText = (monthPnL >= 0 ? '+$' : '-$') + Math.abs(monthPnL).toFixed(2);
+            monthPnLEl.className = `text-base font-bold font-mono ${monthPnL > 0 ? 'text-emerald-400' : (monthPnL < 0 ? 'text-rose-400' : 'text-slate-300')}`;
+
+            document.getElementById('calTradingDays').innerText = tradingDaysCount;
+            document.getElementById('calWinDays').innerText = winDaysCount;
+            document.getElementById('calLossDays').innerText = lossDaysCount;
+
+            // Если за выбранный месяц не был выбран день, выбираем сегодня или первый день с торгами
+            if (!selectedDayKey || !selectedDayKey.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`)) {
+                const todayKey = tradingDay(new Date());
+                if (dailyTradesMap[todayKey]) {
+                    selectCalendarDay(todayKey, dailyPnLMap[todayKey] || 0, dailyTradesMap[todayKey]);
+                } else {
+                    const firstTradedDay = Object.keys(dailyTradesMap).find(k => k.startsWith(`${year}-${String(month + 1).padStart(2, '0')}`));
+                    if (firstTradedDay) {
+                        selectCalendarDay(firstTradedDay, dailyPnLMap[firstTradedDay], dailyTradesMap[firstTradedDay]);
+                    } else {
+                        selectCalendarDay(dateStr = `${year}-${String(month + 1).padStart(2, '0')}-01`, 0, []);
+                    }
+                }
+            }
+        }
+
+        function selectCalendarDay(dateStr, pnl, trades) {
+            selectedDayKey = dateStr;
+            const titleEl = document.getElementById('selectedDayTitle');
+            const badgeEl = document.getElementById('selectedDayPnLBadge');
+            const tradesList = document.getElementById('selectedDayTradesList');
+            const gallery = document.getElementById('dayScreenshotsGallery');
+
+            titleEl.innerText = `Детали и Галерея за ${dateStr}`;
+            
+            const cashFormatted = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+            badgeEl.innerText = cashFormatted;
+            badgeEl.className = `px-2.5 py-1 rounded-lg text-xs font-bold font-mono ${pnl > 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : (pnl < 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-800 text-slate-300')}`;
+
+            // Рендер списка сделок дня
+            tradesList.innerHTML = '';
+            if (!trades || trades.length === 0) {
+                tradesList.innerHTML = '<p class="text-xs text-slate-500">Сделки отсутствуют за выбранный день.</p>';
+            } else {
+                trades.forEach(t => {
+                    const cash = Number(t.cash || 0);
+                    const isClosed = Number(t.net_now) === 0;
+                    const openTime = t.opened_at ? new Date(t.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+                    const cashClass = !isClosed ? 'text-slate-500' : (cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400'));
+                    const cashStr = !isClosed ? '—' : (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
+
+                    const div = document.createElement('div');
+                    div.className = "flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 text-xs font-mono";
+                    div.innerHTML = `
+                        <div class="flex items-center space-x-3">
+                            <span class="font-bold text-white">#${t.trade_no || '—'}</span>
+                            <span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px]">${esc(t.instrument || 'NQ')}</span>
+                            <span class="text-slate-500">${esc(t.account_name || '')}</span>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <span class="text-slate-400">${openTime}</span>
+                            <span class="font-bold ${cashClass}">${cashStr}</span>
+                        </div>
+                    `;
+                    tradesList.appendChild(div);
+                });
+            }
+
+            // РЕНДЕР ГАЛЕРЕИ СКРИНШОТОВ (Snapshots)
+            gallery.innerHTML = '';
+            // Проверяем наличие скриншотов в объекте сделки или выводим плейсхолдер
+            const screenshots = trades.flatMap(t => t.screenshots || t.image_url ? [t.screenshots || t.image_url] : []);
+            
+            if (screenshots.length === 0) {
+                gallery.innerHTML = `
+                    <div class="col-span-full bg-slate-950/60 border border-slate-800 border-dashed rounded-xl p-6 text-center text-slate-500 text-xs">
+                        <i data-lucide="camera" class="w-6 h-6 mx-auto mb-1 opacity-40"></i>
+                        Скриншоты и графики входов за ${dateStr} еще не загружены
+                    </div>
+                `;
+            } else {
+                screenshots.forEach((url, idx) => {
+                    const card = document.createElement('div');
+                    card.className = "bg-slate-950 rounded-xl border border-slate-800 overflow-hidden hover:border-indigo-500/50 transition-all group";
+                    card.innerHTML = `
+                        <div class="relative aspect-video bg-slate-900 overflow-hidden">
+                            <img src="${esc(url)}" alt="Скриншот входа ${idx + 1}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300">
+                        </div>
+                        <div class="p-2.5 text-[11px] text-slate-400 flex items-center justify-between border-t border-slate-800">
+                            <span>Snapshot #${idx + 1}</span>
+                            <a href="${esc(url)}" target="_blank" class="text-indigo-400 hover:underline flex items-center gap-1">Открыть <i data-lucide="external-link" class="w-3 h-3"></i></a>
+                        </div>
+                    `;
+                    gallery.appendChild(card);
+                });
+            }
+            lucide.createIcons();
         }
     </script>
 </body>
