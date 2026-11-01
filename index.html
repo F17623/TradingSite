@@ -106,7 +106,6 @@
 
         <!-- DASHBOARD VIEW -->
         <main id="viewDashboard" class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
-            <!-- НАПОМИНАНИЯ ПО СЧЕТАМ -->
             <div id="remindersBanner" class="hidden bg-amber-950/30 border border-amber-500/30 rounded-2xl p-4 flex items-center justify-between gap-3">
                 <div class="flex items-center space-x-3">
                     <div class="p-2 rounded-xl bg-amber-500/20 text-amber-400"><i data-lucide="alert-circle" class="w-5 h-5"></i></div>
@@ -1034,7 +1033,7 @@
                 }
 
                 cell.className = `h-20 rounded-xl border p-2 flex flex-col justify-between cursor-pointer transition-all ${bgClass}`;
-                cell.onclick = () => selectCalendarDay(dateStr, pnl, dailyTradesMap[dateStr] || []);
+                cell.onclick = () => selectCalendarDay(dateStr, dailyTradesMap[dateStr] || []);
 
                 const pnlFormatted = hasTrades ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
 
@@ -1061,24 +1060,32 @@
             if (!selectedDayKey) {
                 const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
                 const monthTrades = allCalendarTrades.filter(t => t.opened_at && tradingDay(new Date(t.opened_at)).startsWith(monthPrefix));
-                loadAndRenderDayJournal(`Все сделки за ${monthNames[month]} ${year}`, monthPnL, monthTrades);
+                loadAndRenderDayJournal(`Все сделки за ${monthNames[month]} ${year}`, monthTrades);
             }
         }
 
-        function selectCalendarDay(dateStr, pnl, trades) {
+        function selectCalendarDay(dateStr, trades) {
             selectedDayKey = dateStr;
             renderCalendar();
-            loadAndRenderDayJournal(`Сделки за день ${dateStr}`, pnl, trades);
+            loadAndRenderDayJournal(`Сделки за день ${dateStr}`, trades);
             document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-        async function loadAndRenderDayJournal(titleText, pnl, trades) {
+        async function loadAndRenderDayJournal(titleText, trades) {
             const titleEl = document.getElementById('selectedDayTitle');
             const container = document.getElementById('dayTradesContainer');
             const emptyState = document.getElementById('emptyDayTrades');
 
             if (titleEl) titleEl.innerText = titleText;
-            renderHeaderControls(pnl);
+
+            // Считаем P&L прямо из переданных сделок, чтобы избежать NaN
+            let dayPnL = 0;
+            if (trades) {
+                trades.forEach(t => {
+                    if (Number(t.net_now) === 0) dayPnL += Number(t.cash || 0);
+                });
+            }
+            renderHeaderControls(dayPnL);
 
             container.innerHTML = '';
             if (!trades || trades.length === 0) {
@@ -1268,7 +1275,7 @@
                         </div>
                     </div>
 
-                    <!-- СКРИНШОТЫ ВО ВСЮ ШИРИНУ -->
+                    <!-- СКРИНШОТЫ -->
                     ${snapshotHtml}
                 `;
                 container.appendChild(cardDiv);
@@ -1444,7 +1451,7 @@
         function reloadCurrentDayJournal() {
             if (selectedDayKey) {
                 const dayTrades = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey);
-                loadAndRenderDayJournal(`Сделки за день ${selectedDayKey}`, 0, dayTrades);
+                loadAndRenderDayJournal(`Сделки за день ${selectedDayKey}`, dayTrades);
             } else {
                 renderCalendar();
             }
