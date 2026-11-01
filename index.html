@@ -285,7 +285,7 @@
                     <div id="dayControlsHeader" class="flex items-center gap-3"></div>
                 </div>
 
-                <div id="dayTradesContainer" class="divide-y divide-slate-800/80 p-4 space-y-4"></div>
+                <div id="dayTradesContainer" class="divide-y divide-slate-800 p-4 space-y-4"></div>
 
                 <div id="emptyDayTrades" class="hidden p-10 text-center text-slate-500 text-xs">
                     <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-40"></i> За выбранный день сделок не зафиксировано.
@@ -1176,7 +1176,7 @@
                 if (showSnapshots) {
                     const shots = shotsDBData[g.group_no] || [];
                     if (shots.length > 0) {
-                        snapshotHtml = `<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">`;
+                        snapshotHtml = `<div class="space-y-3 mt-3">`;
                         for (const shot of shots) {
                             let signedUrl = '';
                             if (supabaseClient) {
@@ -1193,7 +1193,7 @@
                                         </div>
                                     </div>
                                     <div class="p-2 flex justify-center bg-slate-950">
-                                        <img src="${signedUrl}" alt="Скриншот графика" class="w-full h-auto object-contain rounded-lg max-h-[350px]">
+                                        <img src="${signedUrl}" alt="Скриншот графика" class="w-full h-auto object-contain rounded-lg">
                                     </div>
                                 </div>
                             `;
@@ -1209,7 +1209,8 @@
                         `;
                     }
                 }
-let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.max_qty ? r.net_now : r.max_qty} контр.)`).join(', ');
+
+                let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.max_qty ? r.net_now : r.max_qty} контр.)`).join(', ');
                 const currentNote = notesDBData[g.group_no] || '';
 
                 cardDiv.innerHTML = `
@@ -1267,7 +1268,7 @@ let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.m
                         </div>
                     </div>
 
-                    <!-- СКРИНШОТЫ -->
+                    <!-- СКРИНШОТЫ ВО ВСЮ ШИРИНУ -->
                     ${snapshotHtml}
                 `;
                 container.appendChild(cardDiv);
@@ -1278,7 +1279,6 @@ let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.m
         }
 
         function bindJournalEvents() {
-            // Редактирование / Отмена / Сохранение заметок
             document.querySelectorAll('.edit-note-btn').forEach(btn => {
                 btn.onclick = () => {
                     const groupNo = btn.getAttribute('data-group');
@@ -1309,7 +1309,6 @@ let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.m
                 };
             });
 
-            // Удаление тегов
             document.querySelectorAll('.remove-tag-btn').forEach(btn => {
                 btn.onclick = async () => {
                     const groupNo = btn.getAttribute('data-group');
@@ -1321,7 +1320,6 @@ let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.m
                 };
             });
 
-            // Инпут тегов
             document.querySelectorAll('.tag-input').forEach(input => {
                 const gKey = input.getAttribute('data-group');
                 const dropdown = input.nextElementSibling;
@@ -1386,7 +1384,6 @@ let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.m
                 };
             });
 
-            // Загрузка оригинального скриншота без сжатия
             document.querySelectorAll('.shot-file-input').forEach(fileInput => {
                 fileInput.onchange = async (e) => {
                     const file = e.target.files[0];
@@ -1417,7 +1414,6 @@ let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.m
                 };
             });
 
-            // Удаление скриншота
             document.querySelectorAll('.delete-shot-btn').forEach(btn => {
                 btn.onclick = async () => {
                     if (!confirm('Удалить этот скриншот графика?')) return;
@@ -1477,7 +1473,6 @@ let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.m
             `;
         }
 
-        // ============ УПРАВЛЕНИЕ ФИРМАМИ И СЧЕТАМИ ============
         async function fetchAccountsData() {
             if (!supabaseClient) return;
             const [fRes, aRes] = await Promise.all([
