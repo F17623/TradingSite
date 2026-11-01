@@ -1209,8 +1209,7 @@
                         `;
                     }
                 }
-
-                let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.max_qty ? r.net_now : r.max_qty} контр.)`).join(', ');
+let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.max_qty ? r.net_now : r.max_qty} контр.)`).join(', ');
                 const currentNote = notesDBData[g.group_no] || '';
 
                 cardDiv.innerHTML = `
@@ -1220,7 +1219,7 @@
                             ${dirBadge}
                             <div>
                                 <span class="font-bold text-white text-xs">${esc(g.instrument || 'NQ')}</span>
-                                <span class="text-[11px] text-slate-400 ml-2 font-mono">Счета: ${accountsListStr}</span>
+                                <span class="text-xs text-slate-300 font-medium ml-2 font-mono">Счета: ${accountsListStr}</span>
                             </div>
                         </div>
                         <div class="flex items-center space-x-4 text-right">
