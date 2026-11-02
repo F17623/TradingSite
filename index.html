@@ -293,7 +293,7 @@
 
             <!-- РАЗДЕЛ СВОБОДНЫХ СНИМКОВ (snapshots без group_no) -->
             <div id="freeSnapshotsCard" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-3">
                     <div class="flex items-center space-x-3">
                         <div class="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
                             <i data-lucide="camera" class="w-5 h-5"></i>
@@ -303,9 +303,19 @@
                             <p class="text-xs text-slate-400">Снимки, сделанные вне активности сделок</p>
                         </div>
                     </div>
-                    <button onclick="fetchFreeSnapshots()" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium">
-                        <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Обновить
-                    </button>
+                    
+                    <!-- Панель привязки свободных снимков -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="freeTargetGroupSelect" class="bg-slate-950 text-xs text-white px-3 py-2 rounded-xl border border-slate-800 focus:outline-none focus:border-indigo-500 font-mono">
+                            <option value="">-- Выберите сделку --</option>
+                        </select>
+                        <button onclick="assignSelectedFreeSnapshots()" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-lg shadow-indigo-600/20">
+                            Привязать выбранные (<span id="freeSelectedCount">0</span>)
+                        </button>
+                        <button onclick="fetchFreeSnapshots()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300" title="Обновить">
+                            <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+                        </button>
+                    </div>
                 </div>
                 <div id="freeSnapshotsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
                 <div id="emptyFreeSnapshots" class="hidden p-6 text-center text-slate-500 text-xs">
@@ -824,6 +834,7 @@
                 renderRiskStatus(riskData);
                 renderTrades(todayRows);
                 renderCalendarGridOnly();
+                populateFreeAssignDropdown();
 
                 updateSyncStatus('success');
             } catch (err) {
@@ -1288,7 +1299,6 @@
                         imagesListHtml += `</div>`;
                     }
 
-                    // Всегда видимая форма с выпадающим списком типа снимка
                     snapshotHtml = `
                         <div class="space-y-3 mt-3">
                             ${imagesListHtml}
@@ -1391,9 +1401,12 @@
                 .order('taken_at', { ascending: false })
                 .range(0, 23);
 
+            populateFreeAssignDropdown();
+
             if (!data || data.length === 0) {
                 container.innerHTML = '';
                 emptyState.classList.remove('hidden');
+                updateFreeSelectedCount();
                 return;
             }
             emptyState.classList.add('hidden');
@@ -1410,18 +1423,74 @@
                 const url = signedMap[s.storage_path] || '';
                 const dateStr = s.taken_at ? new Date(s.taken_at).toLocaleString() : '—';
                 return `
-                    <div class="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between">
-                        <div class="p-2 border-b border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
-                            <span>${dateStr}</span>
+                    <div class="relative bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between group hover:border-indigo-500/50 transition-all">
+                        <label class="absolute top-2.5 left-2.5 z-10 cursor-pointer flex items-center justify-center bg-slate-900/90 p-1.5 rounded-lg border border-slate-700 shadow-md">
+                            <input type="checkbox" value="${s.id}" class="free-shot-checkbox w-4 h-4 text-indigo-600 rounded bg-slate-950 border-slate-700 focus:ring-0 cursor-pointer" onchange="updateFreeSelectedCount()">
+                        </label>
+                        <div class="p-2 pl-10 border-b border-slate-800 flex items-center justify-between text-[10px] text-slate-400 bg-slate-900/50">
+                            <span class="font-mono">${dateStr}</span>
                             ${url ? `<a href="${url}" target="_blank" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>` : ''}
                         </div>
-                        <div class="p-2 flex justify-center bg-slate-950">
-                            ${url ? `<img src="${url}" loading="lazy" class="w-full h-auto object-contain rounded-lg">` : '<span class="text-xs text-slate-500">Загрузка...</span>'}
+                        <div class="p-2 flex justify-center bg-slate-950 aspect-video">
+                            ${url ? `<img src="${url}" loading="lazy" class="w-full h-full object-contain rounded-lg">` : '<span class="text-xs text-slate-500">Загрузка...</span>'}
                         </div>
                         ${s.note ? `<div class="p-2 border-t border-slate-800 text-xs text-slate-300">${esc(s.note)}</div>` : ''}
                     </div>
                 `;
             }).join('');
+
+            updateFreeSelectedCount();
+            lucide.createIcons();
+        }
+
+        function populateFreeAssignDropdown() {
+            const select = document.getElementById('freeTargetGroupSelect');
+            if (!select) return;
+            const currentVal = select.value;
+
+            const groups = [...new Set(allCalendarTrades.map(t => t.group_no).filter(Boolean))].sort((a, b) => b - a);
+
+            select.innerHTML = `<option value="">-- Выберите сделку --</option>` +
+                groups.map(g => `<option value="${g}">Сделка #${g}</option>`).join('');
+
+            if (groups.includes(Number(currentVal))) {
+                select.value = currentVal;
+            }
+        }
+
+        function updateFreeSelectedCount() {
+            const checked = document.querySelectorAll('.free-shot-checkbox:checked');
+            const countEl = document.getElementById('freeSelectedCount');
+            if (countEl) countEl.innerText = checked.length;
+        }
+
+        async function assignSelectedFreeSnapshots() {
+            const checkboxes = document.querySelectorAll('.free-shot-checkbox:checked');
+            const ids = Array.from(checkboxes).map(cb => Number(cb.value));
+            const targetGroupNo = document.getElementById('freeTargetGroupSelect').value;
+
+            if (ids.length === 0) {
+                alert('Выберите галочкой хотя бы один снимок.');
+                return;
+            }
+            if (!targetGroupNo) {
+                alert('Выберите номер сделки из списка для привязки.');
+                return;
+            }
+
+            if (!supabaseClient) return;
+
+            const { error } = await supabaseClient
+                .from('snapshots')
+                .update({ group_no: Number(targetGroupNo) })
+                .in('id', ids);
+
+            if (error) {
+                alert('Ошибка привязки снимков: ' + error.message);
+            } else {
+                await fetchFreeSnapshots();
+                reloadCurrentDayJournal();
+            }
         }
 
         function bindJournalEvents() {
