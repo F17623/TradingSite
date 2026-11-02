@@ -1268,16 +1268,19 @@
                     </span>`;
                 });
 
-                let snapshotHtml = '';
+let snapshotHtml = '';
                 if (showSnapshots) {
                     const shots = shotsDBData[g.group_no] || [];
+                    
+                    // Блок существующих картинок (если они есть)
+                    let imagesListHtml = '';
                     if (shots.length > 0) {
-                        snapshotHtml = `<div class="space-y-3 mt-3">`;
+                        imagesListHtml = `<div class="space-y-3 mb-3">`;
                         for (const shot of shots) {
                             const signedUrl = signedUrlsMap[shot.storage_path] || '';
                             const kindTitle = shot.kind === 'open' ? 'Вход' : (shot.kind === 'after' ? 'После закрытия' : 'Ручной снимок');
                             
-                            snapshotHtml += `
+                            imagesListHtml += `
                                 <div class="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
                                     <div class="bg-slate-900/90 px-3 py-1.5 text-[10px] text-slate-400 flex items-center justify-between border-b border-slate-800">
                                         <span class="font-semibold text-slate-300">График: ${kindTitle}</span>
@@ -1292,17 +1295,21 @@
                                 </div>
                             `;
                         }
-                        snapshotHtml += `</div>`;
-                    } else {
-                        snapshotHtml = `
-                            <div class="mt-3 p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
+                        imagesListHtml += `</div>`;
+                    }
+
+                    // Всегда доступная форма для загрузки нового файла
+                    snapshotHtml = `
+                        <div class="space-y-3 mt-3">
+                            ${imagesListHtml}
+                            <div class="p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
                                 <i data-lucide="camera" class="w-5 h-5 opacity-40"></i>
-                                <span>Скриншот не загружен. Загрузить график в сделку:</span>
+                                <span>Загрузить график в сделку:</span>
                                 <input type="file" accept="image/png, image/jpeg, image/webp" data-group="${g.group_no}" class="shot-file-input text-xs text-slate-400 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer">
                             </div>
-                        `;
-                    }
-                }
+                        </div>
+                    `;
+                }               
 
                 let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.max_qty ? r.net_now : r.max_qty} контр.)`).join(', ');
                 const currentNote = notesDBData[g.group_no] || '';
