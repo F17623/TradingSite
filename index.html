@@ -290,6 +290,28 @@
                     <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-40"></i> За выбранный день сделок не зафиксировано.
                 </div>
             </div>
+
+            <!-- РАЗДЕЛ СВОБОДНЫХ СНИМКОВ (snapshots без group_no) -->
+            <div id="freeSnapshotsCard" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            <i data-lucide="camera" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-white">Свободные снимки (Snapshot из NinjaTrader)</h3>
+                            <p class="text-xs text-slate-400">Снимки, сделанные вне активности сделок</p>
+                        </div>
+                    </div>
+                    <button onclick="fetchFreeSnapshots()" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium">
+                        <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i> Обновить
+                    </button>
+                </div>
+                <div id="freeSnapshotsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                <div id="emptyFreeSnapshots" class="hidden p-6 text-center text-slate-500 text-xs">
+                    Свободных снимков пока нет.
+                </div>
+            </div>
         </main>
 
         <!-- ACCOUNTS & FIRMS VIEW -->
@@ -511,6 +533,9 @@
         let allFirms = [];
         let allAccountsOverview = [];
 
+        // Защита от гонки асинхронного рендера дня
+        let currentRenderToken = 0;
+
         function tradingDay(date) {
             const s = date.toLocaleString('sv-SE', { timeZone: 'America/Chicago' });
             const d = new Date(s.replace(' ', 'T') + 'Z');
@@ -557,7 +582,10 @@
             document.getElementById('view' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).classList.remove('hidden');
             document.getElementById('nav' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).className = "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white shadow-sm transition-all";
             
-            if (tabName === 'calendar') renderCalendar();
+            if (tabName === 'calendar') {
+                renderCalendar();
+                fetchFreeSnapshots();
+            }
             if (tabName === 'accounts') fetchAccountsData();
             lucide.createIcons();
         }
@@ -739,6 +767,7 @@
             `).join('');
         }
 
+        // Опрос risk_control и базовых данных без фоновой перерисовки журнального раздела
         async function fetchData() {
             updateSyncStatus('syncing');
             if (isDemoMode || !supabaseClient) {
@@ -795,7 +824,10 @@
 
                 renderRiskStatus(riskData);
                 renderTrades(todayRows);
-                renderCalendar();
+                
+                // Перерисовываем календарную сетку, НЕ затрагивая раскрытый день
+                renderCalendarGridOnly();
+
                 updateSyncStatus('success');
             } catch (err) {
                 console.error('Ошибка чтения из базы:', err);
@@ -961,6 +993,19 @@
         }
 
         function renderCalendar() {
+            renderCalendarGridOnly();
+            const year = currentCalDate.getFullYear();
+            const month = currentCalDate.getMonth();
+            const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+
+            if (!selectedDayKey) {
+                const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+                const monthTrades = allCalendarTrades.filter(t => t.opened_at && tradingDay(new Date(t.opened_at)).startsWith(monthPrefix));
+                loadAndRenderDayJournal(`Все сделки за ${monthNames[month]} ${year}`, monthTrades);
+            }
+        }
+
+        function renderCalendarGridOnly() {
             const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
             const year = currentCalDate.getFullYear();
             const month = currentCalDate.getMonth();
@@ -1056,29 +1101,25 @@
             document.getElementById('calTradingDays').innerText = tradingDaysCount;
             document.getElementById('calWinDays').innerText = winDaysCount;
             document.getElementById('calLossDays').innerText = lossDaysCount;
-
-            if (!selectedDayKey) {
-                const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
-                const monthTrades = allCalendarTrades.filter(t => t.opened_at && tradingDay(new Date(t.opened_at)).startsWith(monthPrefix));
-                loadAndRenderDayJournal(`Все сделки за ${monthNames[month]} ${year}`, monthTrades);
-            }
         }
 
         function selectCalendarDay(dateStr, trades) {
             selectedDayKey = dateStr;
-            renderCalendar();
+            renderCalendarGridOnly();
             loadAndRenderDayJournal(`Сделки за день ${dateStr}`, trades);
             document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
         async function loadAndRenderDayJournal(titleText, trades) {
+            // Увеличиваем токен отрисовки для защиты от асинхронных гонок
+            const thisToken = ++currentRenderToken;
+
             const titleEl = document.getElementById('selectedDayTitle');
             const container = document.getElementById('dayTradesContainer');
             const emptyState = document.getElementById('emptyDayTrades');
 
             if (titleEl) titleEl.innerText = titleText;
 
-            // Считаем P&L прямо из переданных сделок, чтобы избежать NaN
             let dayPnL = 0;
             if (trades) {
                 trades.forEach(t => {
@@ -1087,8 +1128,8 @@
             }
             renderHeaderControls(dayPnL);
 
-            container.innerHTML = '';
             if (!trades || trades.length === 0) {
+                container.innerHTML = '';
                 emptyState.classList.remove('hidden');
                 return;
             }
@@ -1123,23 +1164,71 @@
             let notesDBData = {};
 
             if (supabaseClient && groupKeys.length > 0) {
-                for (const gKey of groupKeys) {
-                    await supabaseClient.from('trade_journal').upsert({ group_no: Number(gKey) }, { onConflict: 'group_no', ignoreDuplicates: true });
-                }
+                const numericGroupKeys = groupKeys.map(Number);
 
-                const { data: jData } = await supabaseClient
-                    .from('trade_journal')
-                    .select('group_no, note, trade_tags(tags(id, name)), trade_shots(id, storage_path, kind)')
-                    .in('group_no', groupKeys.map(Number));
+                // Чтение trade_journal БЕЗ предварительных upsert!
+                const [jRes, tsRes, snapRes] = await Promise.all([
+                    supabaseClient.from('trade_journal').select('group_no, note, trade_tags(tags(id, name))').in('group_no', numericGroupKeys),
+                    supabaseClient.from('trade_shots').select('id, group_no, storage_path, kind, taken_at').in('group_no', numericGroupKeys),
+                    supabaseClient.from('snapshots').select('id, group_no, storage_path, taken_at, note').in('group_no', numericGroupKeys)
+                ]);
 
-                if (jData) {
-                    jData.forEach(j => {
+                if (thisToken !== currentRenderToken) return; // Проверка актуальности запуска
+
+                if (jRes.data) {
+                    jRes.data.forEach(j => {
                         tagsDBData[j.group_no] = j.trade_tags ? j.trade_tags.map(tt => tt.tags) : [];
-                        shotsDBData[j.group_no] = j.trade_shots || [];
                         notesDBData[j.group_no] = j.note || '';
                     });
                 }
+
+                // Объединяем trade_shots и snapshots
+                numericGroupKeys.forEach(gNo => {
+                    const groupShots = (tsRes.data || []).filter(s => Number(s.group_no) === gNo);
+                    const groupSnaps = (snapRes.data || []).filter(s => Number(s.group_no) === gNo).map(s => ({
+                        id: s.id,
+                        group_no: s.group_no,
+                        storage_path: s.storage_path,
+                        kind: 'manual',
+                        taken_at: s.taken_at,
+                        is_snapshot_table: true
+                    }));
+
+                    // Сортировка: open -> manual -> after
+                    const combined = [...groupShots, ...groupSnaps].sort((a, b) => {
+                        const order = { 'open': 1, 'manual': 2, 'after': 3 };
+                        const orderA = order[a.kind] || 4;
+                        const orderB = order[b.kind] || 4;
+                        if (orderA !== orderB) return orderA - orderB;
+                        return new Date(a.taken_at || 0) - new Date(b.taken_at || 0);
+                    });
+
+                    shotsDBData[gNo] = combined;
+                });
             }
+
+            if (thisToken !== currentRenderToken) return; // Повторный чек актуальности
+
+            // Пакетный запрос подписанных ссылок для графиков
+            const allPaths = [];
+            Object.values(shotsDBData).forEach(arr => {
+                arr.forEach(s => { if (s.storage_path) allPaths.push(s.storage_path); });
+            });
+
+            const signedUrlsMap = {};
+            if (showSnapshots && allPaths.length > 0 && supabaseClient) {
+                const { data: signedData } = await supabaseClient.storage.from('shots').createSignedUrls(allPaths, 3600);
+                if (signedData) {
+                    signedData.forEach(item => {
+                        if (item.path && item.signedUrl) signedUrlsMap[item.path] = item.signedUrl;
+                    });
+                }
+            }
+
+            if (thisToken !== currentRenderToken) return; // Повторный чек актуальности
+
+            // Дописываем карточки строго в конце выполнения
+            container.innerHTML = '';
 
             for (const gKey of groupKeys) {
                 const g = groupsMap[gKey];
@@ -1185,22 +1274,20 @@
                     if (shots.length > 0) {
                         snapshotHtml = `<div class="space-y-3 mt-3">`;
                         for (const shot of shots) {
-                            let signedUrl = '';
-                            if (supabaseClient) {
-                                const { data: sUrl } = await supabaseClient.storage.from('shots').createSignedUrl(shot.storage_path, 3600);
-                                if (sUrl) signedUrl = sUrl.signedUrl;
-                            }
+                            const signedUrl = signedUrlsMap[shot.storage_path] || '';
+                            const kindTitle = shot.kind === 'open' ? 'Вход' : (shot.kind === 'after' ? 'После закрытия' : 'Ручной снимок');
+                            
                             snapshotHtml += `
                                 <div class="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
                                     <div class="bg-slate-900/90 px-3 py-1.5 text-[10px] text-slate-400 flex items-center justify-between border-b border-slate-800">
-                                        <span>График (${shot.kind})</span>
+                                        <span class="font-semibold text-slate-300">График: ${kindTitle}</span>
                                         <div class="flex items-center gap-2">
-                                            <a href="${signedUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>
-                                            <button type="button" data-shotid="${shot.id}" data-path="${esc(shot.storage_path)}" data-group="${g.group_no}" class="delete-shot-btn text-rose-400 hover:text-rose-300">Удалить</button>
+                                            ${signedUrl ? `<a href="${signedUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>` : ''}
+                                            <button type="button" data-shotid="${shot.id}" data-path="${esc(shot.storage_path)}" data-issnap="${shot.is_snapshot_table ? '1' : '0'}" data-group="${g.group_no}" class="delete-shot-btn text-rose-400 hover:text-rose-300">Удалить</button>
                                         </div>
                                     </div>
                                     <div class="p-2 flex justify-center bg-slate-950">
-                                        <img src="${signedUrl}" alt="Скриншот графика" class="w-full h-auto object-contain rounded-lg">
+                                        ${signedUrl ? `<img src="${signedUrl}" loading="lazy" alt="Скриншот графика" class="w-full h-auto object-contain rounded-lg">` : '<div class="p-4 text-xs text-slate-500">Загрузка изображения...</div>'}
                                     </div>
                                 </div>
                             `;
@@ -1257,7 +1344,7 @@
                         </div>
                     </div>
 
-                    <!-- ЗАМЕТКА С РЕЖИМОМ ЧТЕНИЯ И КНОПКОЙ EDIT -->
+                    <!-- ЗАМЕТКА -->
                     <div class="pt-1">
                         <div id="noteView_${g.group_no}" class="flex items-start justify-between bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 text-xs text-slate-300">
                             <div class="flex-1 pr-3 whitespace-pre-wrap">${currentNote ? esc(currentNote) : '<span class="text-slate-600 italic">Комментарий не добавлен...</span>'}</div>
@@ -1285,6 +1372,52 @@
             lucide.createIcons();
         }
 
+        // Загрузка свободных снимков из snapshots (где group_no IS NULL)
+        async function fetchFreeSnapshots() {
+            if (!supabaseClient) return;
+            const container = document.getElementById('freeSnapshotsGrid');
+            const emptyState = document.getElementById('emptyFreeSnapshots');
+
+            const { data } = await supabaseClient
+                .from('snapshots')
+                .select('id, storage_path, taken_at, note')
+                .is('group_no', null)
+                .order('taken_at', { ascending: false })
+                .range(0, 23);
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            const paths = data.map(s => s.storage_path).filter(Boolean);
+            const { data: signedData } = await supabaseClient.storage.from('shots').createSignedUrls(paths, 3600);
+            
+            const signedMap = {};
+            if (signedData) {
+                signedData.forEach(item => { if (item.path && item.signedUrl) signedMap[item.path] = item.signedUrl; });
+            }
+
+            container.innerHTML = data.map(s => {
+                const url = signedMap[s.storage_path] || '';
+                const dateStr = s.taken_at ? new Date(s.taken_at).toLocaleString() : '—';
+                return `
+                    <div class="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between">
+                        <div class="p-2 border-b border-slate-800 flex items-center justify-between text-[10px] text-slate-400">
+                            <span>${dateStr}</span>
+                            ${url ? `<a href="${url}" target="_blank" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>` : ''}
+                        </div>
+                        <div class="p-2 flex justify-center bg-slate-950">
+                            ${url ? `<img src="${url}" loading="lazy" class="w-full h-auto object-contain rounded-lg">` : '<span class="text-xs text-slate-500">Загрузка...</span>'}
+                        </div>
+                        ${s.note ? `<div class="p-2 border-t border-slate-800 text-xs text-slate-300">${esc(s.note)}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
         function bindJournalEvents() {
             document.querySelectorAll('.edit-note-btn').forEach(btn => {
                 btn.onclick = () => {
@@ -1307,6 +1440,7 @@
                     const groupNo = btn.getAttribute('data-group');
                     const noteText = document.getElementById(`noteTextarea_${groupNo}`).value.trim();
                     if (supabaseClient) {
+                        // Только при сохранении делаем upsert в trade_journal
                         await supabaseClient.from('trade_journal').upsert({
                             group_no: Number(groupNo),
                             note: noteText
@@ -1426,9 +1560,15 @@
                     if (!confirm('Удалить этот скриншот графика?')) return;
                     const shotId = btn.getAttribute('data-shotid');
                     const path = btn.getAttribute('data-path');
+                    const isSnap = btn.getAttribute('data-issnap') === '1';
+
                     if (supabaseClient) {
                         await supabaseClient.storage.from('shots').remove([path]);
-                        await supabaseClient.from('trade_shots').delete().eq('id', shotId);
+                        if (isSnap) {
+                            await supabaseClient.from('snapshots').delete().eq('id', shotId);
+                        } else {
+                            await supabaseClient.from('trade_shots').delete().eq('id', shotId);
+                        }
                         reloadCurrentDayJournal();
                     }
                 };
@@ -1437,6 +1577,10 @@
 
         async function addTagToDB(groupNo, tagName) {
             if (!supabaseClient) return;
+            
+            // Обеспечиваем наличие записи в trade_journal только при добавлении тега
+            await supabaseClient.from('trade_journal').upsert({ group_no: Number(groupNo) }, { onConflict: 'group_no', ignoreDuplicates: true });
+
             let { data: tagRecord } = await supabaseClient.from('tags').select('id').eq('name', tagName).single();
             if (!tagRecord) {
                 const { data: newTag, error } = await supabaseClient.from('tags').insert({ name: tagName }).select('id').single();
