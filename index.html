@@ -767,7 +767,6 @@
             `).join('');
         }
 
-        // Опрос risk_control и базовых данных без фоновой перерисовки журнального раздела
         async function fetchData() {
             updateSyncStatus('syncing');
             if (isDemoMode || !supabaseClient) {
@@ -824,8 +823,6 @@
 
                 renderRiskStatus(riskData);
                 renderTrades(todayRows);
-                
-                // Перерисовываем календарную сетку, НЕ затрагивая раскрытый день
                 renderCalendarGridOnly();
 
                 updateSyncStatus('success');
@@ -1111,7 +1108,6 @@
         }
 
         async function loadAndRenderDayJournal(titleText, trades) {
-            // Увеличиваем токен отрисовки для защиты от асинхронных гонок
             const thisToken = ++currentRenderToken;
 
             const titleEl = document.getElementById('selectedDayTitle');
@@ -1166,14 +1162,13 @@
             if (supabaseClient && groupKeys.length > 0) {
                 const numericGroupKeys = groupKeys.map(Number);
 
-                // Чтение trade_journal БЕЗ предварительных upsert!
                 const [jRes, tsRes, snapRes] = await Promise.all([
                     supabaseClient.from('trade_journal').select('group_no, note, trade_tags(tags(id, name))').in('group_no', numericGroupKeys),
                     supabaseClient.from('trade_shots').select('id, group_no, storage_path, kind, taken_at').in('group_no', numericGroupKeys),
                     supabaseClient.from('snapshots').select('id, group_no, storage_path, taken_at, note').in('group_no', numericGroupKeys)
                 ]);
 
-                if (thisToken !== currentRenderToken) return; // Проверка актуальности запуска
+                if (thisToken !== currentRenderToken) return;
 
                 if (jRes.data) {
                     jRes.data.forEach(j => {
@@ -1182,7 +1177,6 @@
                     });
                 }
 
-                // Объединяем trade_shots и snapshots
                 numericGroupKeys.forEach(gNo => {
                     const groupShots = (tsRes.data || []).filter(s => Number(s.group_no) === gNo);
                     const groupSnaps = (snapRes.data || []).filter(s => Number(s.group_no) === gNo).map(s => ({
@@ -1194,9 +1188,8 @@
                         is_snapshot_table: true
                     }));
 
-                    // Сортировка: open -> manual -> after
                     const combined = [...groupShots, ...groupSnaps].sort((a, b) => {
-                        const order = { 'open': 1, 'manual': 2, 'after': 3 };
+                        const order = { 'open': 1, 'manual': 2, 'other': 2, 'after': 3 };
                         const orderA = order[a.kind] || 4;
                         const orderB = order[b.kind] || 4;
                         if (orderA !== orderB) return orderA - orderB;
@@ -1207,9 +1200,8 @@
                 });
             }
 
-            if (thisToken !== currentRenderToken) return; // Повторный чек актуальности
+            if (thisToken !== currentRenderToken) return;
 
-            // Пакетный запрос подписанных ссылок для графиков
             const allPaths = [];
             Object.values(shotsDBData).forEach(arr => {
                 arr.forEach(s => { if (s.storage_path) allPaths.push(s.storage_path); });
@@ -1225,9 +1217,8 @@
                 }
             }
 
-            if (thisToken !== currentRenderToken) return; // Повторный чек актуальности
+            if (thisToken !== currentRenderToken) return;
 
-            // Дописываем карточки строго в конце выполнения
             container.innerHTML = '';
 
             for (const gKey of groupKeys) {
@@ -1268,17 +1259,16 @@
                     </span>`;
                 });
 
-let snapshotHtml = '';
+                let snapshotHtml = '';
                 if (showSnapshots) {
                     const shots = shotsDBData[g.group_no] || [];
                     
-                    // Блок существующих картинок (если они есть)
                     let imagesListHtml = '';
                     if (shots.length > 0) {
                         imagesListHtml = `<div class="space-y-3 mb-3">`;
                         for (const shot of shots) {
                             const signedUrl = signedUrlsMap[shot.storage_path] || '';
-                            const kindTitle = shot.kind === 'open' ? 'Вход' : (shot.kind === 'after' ? 'После закрытия' : 'Ручной снимок');
+                            const kindTitle = shot.kind === 'open' ? 'Вход (open)' : (shot.kind === 'after' ? 'После закрытия (after)' : (shot.kind === 'manual' ? 'Ручной (manual)' : 'Другое (other)'));
                             
                             imagesListHtml += `
                                 <div class="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
@@ -1298,18 +1288,28 @@ let snapshotHtml = '';
                         imagesListHtml += `</div>`;
                     }
 
-                    // Всегда доступная форма для загрузки нового файла
+                    // Всегда видимая форма с выпадающим списком типа снимка
                     snapshotHtml = `
                         <div class="space-y-3 mt-3">
                             ${imagesListHtml}
-                            <div class="p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2">
-                                <i data-lucide="camera" class="w-5 h-5 opacity-40"></i>
-                                <span>Загрузить график в сделку:</span>
-                                <input type="file" accept="image/png, image/jpeg, image/webp" data-group="${g.group_no}" class="shot-file-input text-xs text-slate-400 file:mr-4 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer">
+                            <div class="p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-500 space-y-3">
+                                <div class="flex items-center justify-center gap-2">
+                                    <i data-lucide="camera" class="w-4 h-4 opacity-40"></i>
+                                    <span>Загрузить график в сделку:</span>
+                                </div>
+                                <div class="flex flex-wrap items-center justify-center gap-2">
+                                    <select id="uploadKind_${g.group_no}" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 font-mono">
+                                        <option value="open">Вход (open)</option>
+                                        <option value="manual" selected>Ручной (manual)</option>
+                                        <option value="after">После закрытия (after)</option>
+                                        <option value="other">Другое (other)</option>
+                                    </select>
+                                    <input type="file" accept="image/png, image/jpeg, image/webp" data-group="${g.group_no}" class="shot-file-input text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer bg-slate-950 border border-slate-800 rounded-lg">
+                                </div>
                             </div>
                         </div>
                     `;
-                }               
+                }
 
                 let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.max_qty ? r.net_now : r.max_qty} контр.)`).join(', ');
                 const currentNote = notesDBData[g.group_no] || '';
@@ -1379,7 +1379,6 @@ let snapshotHtml = '';
             lucide.createIcons();
         }
 
-        // Загрузка свободных снимков из snapshots (где group_no IS NULL)
         async function fetchFreeSnapshots() {
             if (!supabaseClient) return;
             const container = document.getElementById('freeSnapshotsGrid');
@@ -1447,7 +1446,6 @@ let snapshotHtml = '';
                     const groupNo = btn.getAttribute('data-group');
                     const noteText = document.getElementById(`noteTextarea_${groupNo}`).value.trim();
                     if (supabaseClient) {
-                        // Только при сохранении делаем upsert в trade_journal
                         await supabaseClient.from('trade_journal').upsert({
                             group_no: Number(groupNo),
                             note: noteText
@@ -1538,6 +1536,9 @@ let snapshotHtml = '';
                     const groupNo = fileInput.getAttribute('data-group');
                     if (!file || !supabaseClient) return;
 
+                    const kindSelect = document.getElementById(`uploadKind_${groupNo}`);
+                    const selectedKind = kindSelect ? kindSelect.value : 'other';
+
                     try {
                         const fileExt = file.name.split('.').pop() || 'jpg';
                         const fileName = `${groupNo}/${crypto.randomUUID()}.${fileExt}`;
@@ -1552,7 +1553,7 @@ let snapshotHtml = '';
                             group_no: Number(groupNo),
                             storage_path: fileName,
                             bytes: file.size,
-                            kind: 'other'
+                            kind: selectedKind
                         });
 
                         reloadCurrentDayJournal();
@@ -1584,14 +1585,12 @@ let snapshotHtml = '';
 
         async function addTagToDB(groupNo, tagName) {
             if (!supabaseClient) return;
-            
-            // Обеспечиваем наличие записи в trade_journal только при добавлении тега
             await supabaseClient.from('trade_journal').upsert({ group_no: Number(groupNo) }, { onConflict: 'group_no', ignoreDuplicates: true });
 
             let { data: tagRecord } = await supabaseClient.from('tags').select('id').eq('name', tagName).single();
             if (!tagRecord) {
                 const { data: newTag, error } = await supabaseClient.from('tags').insert({ name: tagName }).select('id').single();
-                if (error) { alert('Неверное имя тега (до 40 символов, без кавычек и спецсимволов)'); return; }
+                if (error) { alert('Неверное имя тега'); return; }
                 tagRecord = newTag;
                 await fetchTagsList();
             }
