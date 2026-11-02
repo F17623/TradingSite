@@ -198,9 +198,14 @@
                         <i data-lucide="list-ordered" class="w-4 h-4 text-indigo-400"></i>
                         <h3 class="text-sm font-bold text-white uppercase tracking-wider">Сводка сделок (trade_summary)</h3>
                     </div>
-                    <button onclick="fetchData()" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium transition-colors">
-                        <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i><span>Обновить</span>
-                    </button>
+                    <div class="flex items-center space-x-3">
+                        <button onclick="jumpToTodayInCalendar()" class="px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-xs font-semibold transition-all flex items-center gap-1">
+                            <i data-lucide="calendar-days" class="w-3.5 h-3.5"></i><span>Сегодня в журнале</span>
+                        </button>
+                        <button onclick="fetchData()" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium transition-colors">
+                            <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i><span>Обновить</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="hidden md:block overflow-x-auto">
                     <table class="w-full text-left text-xs">
@@ -598,6 +603,15 @@
             }
             if (tabName === 'accounts') fetchAccountsData();
             lucide.createIcons();
+        }
+
+        function jumpToTodayInCalendar() {
+            switchTab('calendar');
+            const todayStr = tradingDay(new Date());
+            const [y, m] = todayStr.split('-').map(Number);
+            currentCalDate = new Date(y, m - 1, 1);
+            const todayTrades = allCalendarTrades.filter(t => t.opened_at && tradingDay(new Date(t.opened_at)) === todayStr);
+            selectCalendarDay(todayStr, todayTrades);
         }
 
         function startSessionClock() {
