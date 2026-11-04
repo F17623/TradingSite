@@ -1,316 +1,1506 @@
 <!DOCTYPE html>
-<html lang="ru" class="dark">
+<html lang="ru" class="h-full bg-slate-950">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trading Journal Dashboard</title>
-    <!-- Tailwind CSS -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Trading Guard & Analytics System</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
     <script>
         tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
-                    colors: {
-                        slate: {
-                            950: '#0b0f17',
-                            900: '#111827',
-                            800: '#1e293b',
-                            700: '#334155'
-                        }
-                    }
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: { slate: { 850: '#111827', 900: '#0f172a', 950: '#020617' } }
                 }
             }
         }
     </script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Supabase JS SDK -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #090d16; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+        .pb-safe { padding-bottom: env(safe-area-inset-bottom, 1rem); }
+        .pt-safe { padding-top: env(safe-area-inset-top, 1rem); }
+        @keyframes subtle-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        .animate-subtle-pulse { animation: subtle-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased selection:bg-indigo-500 selection:text-white">
+<body class="h-full text-slate-100 font-sans antialiased bg-slate-950 flex flex-col selection:bg-indigo-500 selection:text-white">
 
-    <div class="max-w-7xl mx-auto p-4 md:p-8 space-y-8">
-        
-        <!-- Шапка / Навигация -->
-        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/60 border border-slate-800/80 p-6 rounded-2xl backdrop-blur-md shadow-xl">
-            <div>
-                <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                    <i data-lucide="activity" class="w-7 h-7 text-indigo-400"></i>
-                    Trading Performance Dashboard
-                </h1>
-                <p class="text-xs text-slate-400 mt-1">Системный учет сделок, тиков и визуального контроля</p>
+    <!-- LOGIN OVERLAY -->
+    <div id="loginOverlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-md px-4 pt-safe pb-safe transition-opacity duration-300">
+        <div class="w-full max-w-xs flex flex-col items-center">
+            <div class="w-16 h-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center mb-6 shadow-lg shadow-indigo-500/10">
+                <i data-lucide="shield-check" class="w-8 h-8 text-indigo-400"></i>
             </div>
-            <div class="flex items-center gap-3">
-                <button onclick="refreshAllData()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-xl transition-all shadow-lg shadow-indigo-600/20 flex items-center gap-2">
-                    <i data-lucide="refresh-cw" class="w-4 h-4"></i> Обновить данные
+            <h2 class="text-xl font-bold text-white tracking-wide">Trading Guard</h2>
+            <p class="text-xs text-slate-400 mt-1 mb-8">Войдите, чтобы открыть панель</p>
+
+            <form id="loginForm" onsubmit="handleLogin(event)" class="w-full space-y-3">
+                <input type="email" id="loginEmail" autocomplete="username" required placeholder="Email"
+                    class="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+                <input type="password" id="loginPassword" autocomplete="current-password" required placeholder="Пароль"
+                    class="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-sm text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500">
+                <div id="loginError" class="text-xs text-rose-500 font-medium min-h-[1rem] text-center opacity-0 transition-opacity duration-200"></div>
+                <button type="submit" id="loginBtn"
+                    class="w-full h-12 rounded-2xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-500 active:scale-95 shadow-lg shadow-indigo-600/20 transition-all">
+                    Войти
                 </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP LAYOUT -->
+    <div id="mainApp" class="hidden min-h-full flex flex-col pt-safe pb-safe">
+        
+        <!-- HEADER -->
+        <header class="sticky top-0 z-30 bg-slate-950/85 backdrop-blur-md border-b border-slate-800/60 px-4 py-3">
+            <div class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+                <div class="flex items-center justify-between w-full md:w-auto">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+                            <i data-lucide="activity" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-base font-bold text-white leading-tight">Trading Guard</h1>
+                            <p class="text-xs text-slate-400 flex items-center gap-1.5">
+                                <span id="syncDot" class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                <span id="syncText">Синхронизировано</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- NAVIGATION TABS -->
+                <nav class="flex items-center space-x-1 bg-slate-900/90 border border-slate-800/80 p-1 rounded-2xl w-full md:w-auto justify-center">
+                    <button onclick="switchTab('dashboard')" id="navDashboard" class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white shadow-sm transition-all">
+                        <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Дашборд
+                    </button>
+                    <button onclick="switchTab('calendar')" id="navCalendar" class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+                        <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Календарь и Журнал
+                    </button>
+                    <button onclick="switchTab('accounts')" id="navAccounts" class="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all">
+                        <i data-lucide="briefcase" class="w-3.5 h-3.5"></i> Счета и Учет
+                    </button>
+                </nav>
+
+                <!-- CLOCK WIDGET -->
+                <div class="hidden lg:flex items-center gap-2 bg-slate-900 border border-slate-800/80 px-3 py-1.5 rounded-xl font-mono text-xs">
+                    <span id="sessionStatusDot" class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                    <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
+                    <span id="sessionLabel" class="text-slate-400">Futures close</span>
+                    <span id="sessionCountdown" class="text-cyan-400 font-bold">00:00:00</span>
+                </div>
+
+                <div class="hidden md:flex items-center space-x-2">
+                    <button onclick="openConfigModal()" class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white" title="Настройки"><i data-lucide="settings" class="w-4 h-4"></i></button>
+                    <button onclick="lockSession()" class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400" title="Выйти"><i data-lucide="lock" class="w-4 h-4"></i></button>
+                </div>
             </div>
         </header>
 
-        <!-- Основная таблица сделок -->
-        <section class="bg-slate-900/60 border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl">
-            <div class="p-5 border-b border-slate-800 flex justify-between items-center">
-                <h2 class="text-lg font-semibold text-white flex items-center gap-2">
-                    <i data-lucide="list-ordered" class="w-5 h-5 text-indigo-400"></i> Сделки текущего дня
-                </h2>
-                <span id="tradesCountBadge" class="text-xs font-mono bg-slate-800 text-slate-300 px-3 py-1 rounded-full">0 сделок</span>
-            </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-slate-950/50 text-slate-400 uppercase tracking-wider text-[11px] font-semibold border-b border-slate-800 select-none">
-                        <tr>
-                            <th class="py-3 px-4 cursor-pointer hover:text-white transition-colors" onclick="sortTrades('group_no')">Сделка / Счет ↕</th>
-                            <th class="py-3 px-4 cursor-pointer hover:text-white transition-colors" onclick="sortTrades('instrument')">Инструмент ↕</th>
-                            <th class="py-3 px-4 cursor-pointer hover:text-white transition-colors" onclick="sortTrades('opened_at')">Открыта ↕</th>
-                            <th class="py-3 px-4 cursor-pointer hover:text-white transition-colors" onclick="sortTrades('net_now')">Статус ↕</th>
-                            <th class="py-3 px-4 text-right cursor-pointer hover:text-white transition-colors" onclick="sortTrades('ticks')">Тики ↕</th>
-                            <th class="py-3 px-4 text-right cursor-pointer hover:text-white transition-colors" onclick="sortTrades('cash')">Результат ($) ↕</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tradesTableBody" class="divide-y divide-slate-800/60 text-sm">
-                        <tr>
-                            <td colspan="6" class="py-8 text-center text-slate-500">Загрузка данных...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </section>
-
-        <!-- Галерея свободных снимков (за последние 48 часов) -->
-        <section class="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-6 shadow-xl space-y-4">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h2 class="text-lg font-semibold text-white flex items-center gap-2">
-                        <i data-lucide="image" class="w-5 h-5 text-indigo-400"></i> Свободные снимки (последние 48 часов)
-                    </h2>
-                    <p class="text-xs text-slate-400">Скрины без привязки к группе. Выберите нужные и привяжите к сделке.</p>
+        <!-- DASHBOARD VIEW -->
+        <main id="viewDashboard" class="flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
+            <div id="remindersBanner" class="hidden bg-amber-950/30 border border-amber-500/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2 rounded-xl bg-amber-500/20 text-amber-400"><i data-lucide="alert-circle" class="w-5 h-5"></i></div>
+                    <div>
+                        <h4 class="text-xs font-bold text-amber-300 uppercase tracking-wider">Важные напоминания по счетам</h4>
+                        <div id="remindersList" class="text-xs text-slate-300 mt-1 flex flex-wrap gap-3"></div>
+                    </div>
                 </div>
-                
-                <!-- Панель управления массовой привязкой -->
-                <div class="flex items-center gap-2 bg-slate-950 p-2 rounded-xl border border-slate-800">
-                    <span id="freeSelectedCountText" class="text-xs text-slate-400 px-2 font-mono">Выбрано: 0</span>
-                    <select id="freeTargetGroupSelect" class="bg-slate-900 border border-slate-700 text-xs rounded-lg px-3 py-1.5 text-slate-200 focus:outline-none focus:border-indigo-500">
-                        <option value="">-- Выберите сделку --</option>
-                    </select>
-                    <button onclick="assignSelectedFreeSnapshots()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium rounded-lg transition-all">
-                        Привязать
+            </div>
+
+            <div id="statusBanner" class="p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-slate-900 border-slate-800">
+                <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div class="space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <span id="bannerBadge" class="px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">ALLOW</span>
+                        </div>
+                        <h2 id="bannerTitle" class="text-2xl font-black tracking-tight text-white pt-1">ТОРГОВЛЯ РАЗРЕШЕНА</h2>
+                        <p id="bannerDesc" class="text-xs text-slate-400">Все лимиты в норме. Контроллер готов принимать ордера.</p>
+                    </div>
+                    <div class="flex items-center gap-3 pt-2 md:pt-0 border-t md:border-t-0 border-slate-800">
+                        <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 min-w-[110px]">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium">Лимит потерь</div>
+                            <div id="lossLimitVal" class="text-sm font-bold text-rose-400">-$1,000</div>
+                        </div>
+                        <div class="bg-slate-950/60 border border-slate-800 rounded-xl p-2.5 min-w-[110px]">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 font-medium">Цель профита</div>
+                            <div id="profitLimitVal" class="text-sm font-bold text-emerald-400">+$1,000</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row items-center justify-between gap-4">
+                <div class="flex items-center space-x-3 w-full lg:w-auto">
+                    <div class="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                        <i data-lucide="shield-alert" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-sm font-bold text-white">Защита от тильта и сессий</h3>
+                            <span id="tiltTimerBadge" class="hidden px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                00:00:00
+                            </span>
+                        </div>
+                        <p id="panelSubText" class="text-[11px] text-slate-400">Управление режимами в risk_control</p>
+                    </div>
+                </div>
+
+                <div id="controlButtonsContainer" class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto transition-opacity">
+                    <button id="btnAsia" onclick="confirmAction('asia', 'ВНИМАНИЕ: Заблокировать Азию? Отменить нельзя.')" class="px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-semibold hover:bg-indigo-500/20 transition-all flex items-center gap-1.5">
+                        <i data-lucide="moon" class="w-3.5 h-3.5"></i> Блок Азии
+                    </button>
+                    <button id="btnDay" onclick="confirmAction('session', 'ВНИМАНИЕ: Закрыть торговлю до конца сессии? Отменить нельзя.')" class="px-3 py-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold hover:bg-rose-500/20 transition-all flex items-center gap-1.5">
+                        <i data-lucide="lock" class="w-3.5 h-3.5"></i> Закрыть день
+                    </button>
+                    <button id="btnPause" onclick="confirmAction('manual_1h', 'ВНИМАНИЕ: Пауза на 1 час. Отменить нельзя.')" class="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-all flex items-center gap-1.5">
+                        <i data-lucide="timer" class="w-3.5 h-3.5"></i> Пауза 1 час
                     </button>
                 </div>
             </div>
 
-            <!-- Сетка свободных снимков -->
-            <div id="emptyFreeSnapshots" class="hidden py-12 text-center text-slate-500 text-sm border border-dashed border-slate-800 rounded-xl">
-                Нет свободных снимков за последние 48 часов.
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col">
+                    <span class="text-xs font-medium text-slate-400 mb-1">Итог (Recent P&L)</span>
+                    <span id="statPnL" class="text-xl font-bold text-slate-200">$0.00</span>
+                    <span class="text-[10px] text-slate-500 mt-auto pt-2">За торговый день</span>
+                </div>
+                <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col">
+                    <span class="text-xs font-medium text-slate-400 mb-1">Всего сделок</span>
+                    <span id="statTotalTrades" class="text-xl font-bold text-white">0</span>
+                    <span id="statWinRate" class="text-[10px] text-slate-500 mt-auto pt-2">Win Rate: 0%</span>
+                </div>
+                <div class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col">
+                    <span class="text-xs font-medium text-slate-400 mb-1">Открытые позиции</span>
+                    <span id="statActiveTrades" class="text-xl font-bold text-indigo-400">0</span>
+                    <span class="text-[10px] text-slate-500 mt-auto pt-2">net_now &ne; 0</span>
+                </div>
+                <div id="statProtectionCard" class="bg-slate-900 border border-slate-800/80 rounded-2xl p-4 flex flex-col">
+                    <span class="text-xs font-medium text-slate-400 mb-1">Режим Защиты</span>
+                    <span id="statProtectionTitle" class="text-xl font-bold text-emerald-400 flex items-center gap-1.5">
+                        <i data-lucide="shield-check" class="w-5 h-5"></i><span>АКТИВЕН</span>
+                    </span>
+                    <span id="statProtectionSub" class="text-[10px] text-slate-400 mt-auto pt-2">Без кнопки сброса</span>
+                </div>
             </div>
-            <div id="freeSnapshotsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                <!-- Динамически заполняется JavaScript -->
-            </div>
-        </section>
 
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="list-ordered" class="w-4 h-4 text-indigo-400"></i>
+                        <h3 class="text-sm font-bold text-white uppercase tracking-wider">Сводка сделок (trade_summary)</h3>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <button onclick="jumpToTodayInCalendar()" class="px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 text-indigo-300 text-xs font-semibold transition-all flex items-center gap-1">
+                            <i data-lucide="calendar-days" class="w-3.5 h-3.5"></i><span>Сегодня в журнале</span>
+                        </button>
+                        <button onclick="fetchData()" class="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium transition-colors">
+                            <i data-lucide="rotate-cw" class="w-3.5 h-3.5"></i><span>Обновить</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="hidden md:block overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-950/50 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                            <tr>
+                                <th class="py-3 px-4">Сделка / Счет</th>
+                                <th class="py-3 px-4">Инструмент</th>
+                                <th class="py-3 px-4">Открыта</th>
+                                <th class="py-3 px-4">Статус (net_now)</th>
+                                <th class="py-3 px-4 text-right">Тики</th>
+                                <th class="py-3 px-4 text-right">Результат (cash)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tradesTableBody" class="divide-y divide-slate-800/60 font-medium"></tbody>
+                    </table>
+                </div>
+                <div id="emptyTrades" class="hidden p-8 text-center text-slate-500 text-xs">
+                    <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-40"></i> Сделки еще не зарегистрированы в базе данных.
+                </div>
+            </div>
+        </main>
+
+        <!-- CALENDAR & JOURNAL VIEW -->
+        <main id="viewCalendar" class="hidden flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/20">
+                            <i data-lucide="calendar" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-base font-bold text-white">Торговый Календарь и Журнал</h2>
+                            <p class="text-xs text-slate-400">Нажмите на любой день для просмотра и разбора сделок с тегами и графиками</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2 bg-slate-950/60 border border-slate-800 p-1.5 rounded-xl">
+                        <button onclick="changeMonth(-1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                        <span id="calendarMonthLabel" class="text-xs font-bold text-white font-mono px-2">Октябрь 2026</span>
+                        <button onclick="changeMonth(1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-slate-800/80">
+                    <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/60">
+                        <div class="text-[10px] text-slate-400 uppercase font-semibold">P&L за месяц</div>
+                        <div id="calMonthPnL" class="text-base font-bold text-emerald-400 font-mono">+$0.00</div>
+                    </div>
+                    <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/60">
+                        <div class="text-[10px] text-slate-400 uppercase font-semibold">Торговых дней</div>
+                        <div id="calTradingDays" class="text-base font-bold text-white font-mono">0</div>
+                    </div>
+                    <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/60">
+                        <div class="text-[10px] text-slate-400 uppercase font-semibold">Прибыльных дней</div>
+                        <div id="calWinDays" class="text-base font-bold text-emerald-400 font-mono">0</div>
+                    </div>
+                    <div class="bg-slate-950/40 rounded-xl p-3 border border-slate-800/60">
+                        <div class="text-[10px] text-slate-400 uppercase font-semibold">Убыточных дней</div>
+                        <div id="calLossDays" class="text-base font-bold text-rose-400 font-mono">0</div>
+                    </div>
+                </div>
+
+                <div class="pt-2">
+                    <div class="grid grid-cols-7 gap-1.5 text-center text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                        <div>Пн</div><div>Вт</div><div>Ср</div><div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+                    </div>
+                    <div id="calendarGrid" class="grid grid-cols-7 gap-1.5"></div>
+                </div>
+            </div>
+
+            <div id="dayDetailsCard" class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl space-y-0">
+                <div class="p-5 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/90">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 rounded-xl bg-indigo-500/10 text-indigo-400">
+                            <i data-lucide="list-ordered" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 id="selectedDayTitle" class="text-base font-bold text-white">Сделки за день</h3>
+                            <p class="text-xs text-slate-400">Разбор сделок с тегами и графиками из базы</p>
+                        </div>
+                    </div>
+                    
+                    <div id="dayControlsHeader" class="flex items-center gap-3"></div>
+                </div>
+
+                <div id="dayTradesContainer" class="divide-y divide-slate-800 p-4 space-y-4"></div>
+
+                <div id="emptyDayTrades" class="hidden p-10 text-center text-slate-500 text-xs">
+                    <i data-lucide="inbox" class="w-8 h-8 mx-auto mb-2 opacity-40"></i> За выбранный день сделок не зафиксировано.
+                </div>
+            </div>
+
+            <!-- РАЗДЕЛ СВОБОДНЫХ СНИМКОВ (snapshots без group_no) -->
+            <div id="freeSnapshotsCard" class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800 pb-3">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            <i data-lucide="camera" class="w-5 h-5"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-white">Свободные снимки (Snapshot из NinjaTrader)</h3>
+                            <p class="text-xs text-slate-400">Снимки, сделанные вне активности сделок</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Панель привязки свободных снимков -->
+                    <div class="flex flex-wrap items-center gap-2">
+                        <select id="freeTargetGroupSelect" class="bg-slate-950 text-xs text-white px-3 py-2 rounded-xl border border-slate-800 focus:outline-none focus:border-indigo-500 font-mono">
+                            <option value="">-- Выберите сделку --</option>
+                        </select>
+                        <button onclick="assignSelectedFreeSnapshots()" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-lg shadow-indigo-600/20">
+                            Привязать выбранные (<span id="freeSelectedCount">0</span>)
+                        </button>
+                        <button onclick="fetchFreeSnapshots()" class="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300" title="Обновить">
+                            <i data-lucide="rotate-cw" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="freeSnapshotsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                <div id="emptyFreeSnapshots" class="hidden p-6 text-center text-slate-500 text-xs">
+                    Свободных снимков пока нет.
+                </div>
+            </div>
+        </main>
+
+        <!-- ACCOUNTS & FIRMS VIEW -->
+        <main id="viewAccounts" class="hidden flex-1 max-w-6xl w-full mx-auto p-4 space-y-6">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/20"><i data-lucide="briefcase" class="w-5 h-5"></i></div>
+                        <div>
+                            <h2 class="text-base font-bold text-white">Управление фирмами и счетами</h2>
+                            <p class="text-xs text-slate-400">Отслеживание статусов, сбросов, продлений и минимальных сделок</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="openFirmModal()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-all flex items-center gap-1.5">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Добавить фирму
+                        </button>
+                        <button onclick="openAccountModal()" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition-all flex items-center gap-1.5 shadow-lg shadow-indigo-600/20">
+                            <i data-lucide="plus" class="w-3.5 h-3.5"></i> Добавить счёт
+                        </button>
+                    </div>
+                </div>
+
+                <div id="accountsTableContainer" class="overflow-x-auto">
+                    <table class="w-full text-left text-xs">
+                        <thead class="bg-slate-950/60 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                            <tr>
+                                <th class="py-3 px-4">Счёт / Фирма</th>
+                                <th class="py-3 px-4">Тип / Статус</th>
+                                <th class="py-3 px-4">Покупка / Траты</th>
+                                <th class="py-3 px-4">Сбросы</th>
+                                <th class="py-3 px-4">Продление / Мин. сделка</th>
+                                <th class="py-3 px-4 text-right">Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody id="accountsTableBody" class="divide-y divide-slate-800/60 font-medium"></tbody>
+                    </table>
+                </div>
+                <div id="emptyAccounts" class="hidden p-8 text-center text-slate-500 text-xs">
+                    <i data-lucide="briefcase" class="w-8 h-8 mx-auto mb-2 opacity-40"></i> Счета еще не заведены в систему.
+                </div>
+            </div>
+        </main>
+
+        <footer class="mt-auto border-t border-slate-800/60 py-4 px-4 text-center text-[11px] text-slate-500">
+            <p>NinjaTrader 8 Risk Controller &bull; Supabase Postgres Engine &bull; Multi-Firm Manager</p>
+        </footer>
     </div>
 
-    <!-- Script Logic -->
+    <!-- MODAL: CONFIRM ACTION -->
+    <div id="confirmModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4 text-center">
+            <div class="w-12 h-12 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 flex items-center justify-center mx-auto">
+                <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+            </div>
+            <h3 class="text-base font-bold text-white">Подтверждение действия</h3>
+            <p id="confirmText" class="text-xs text-slate-400"></p>
+            <div class="flex gap-2 pt-2">
+                <button onclick="closeConfirmModal()" class="flex-1 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700 transition-all">Отмена</button>
+                <button onclick="executeConfirmedAction()" class="flex-1 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20">Подтвердить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CONFIG SUPABASE -->
+    <div id="configModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white flex items-center gap-2"><i data-lucide="database" class="w-4 h-4 text-indigo-400"></i> Настройки Supabase</h3>
+                <button onclick="closeConfigModal()" class="text-slate-400 hover:text-white p-1"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <div class="space-y-3">
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Supabase Project URL</label><input type="text" id="supabaseUrlInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Supabase Anon Key</label><input type="password" id="supabaseKeyInput" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+            </div>
+            <div class="flex justify-end gap-2 pt-2">
+                <button onclick="closeConfigModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">Отмена</button>
+                <button onclick="saveConfig()" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD FIRM -->
+    <div id="firmModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white">Добавить проп-фирму</h3>
+                <button onclick="closeFirmModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form onsubmit="handleCreateFirm(event)" class="space-y-3">
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Название фирмы</label><input type="text" id="firmName" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Сайт</label><input type="text" id="firmWebsite" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Заметки</label><textarea id="firmNotes" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white h-20"></textarea></div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeFirmModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">Отмена</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD ACCOUNT WITH FILE INVOICE -->
+    <div id="accountModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white">Добавить торговый счёт</h3>
+                <button onclick="closeAccountModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form onsubmit="handleCreateAccount(event)" class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Проп-фирма</label>
+                        <select id="accFirmId" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Номер (как в NinjaTrader)</label>
+                        <input type="text" id="accNumber" required placeholder="например PAAPEX..." class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Тип</label>
+                        <select id="accKind" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white">
+                            <option value="evaluation">Evaluation (Оценка)</option>
+                            <option value="funded">Funded (Финансируемый)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-300 mb-1">Статус</label>
+                        <select id="accStatus" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white">
+                            <option value="active">Active</option>
+                            <option value="passed">Passed</option>
+                            <option value="blown">Blown</option>
+                            <option value="closed">Closed</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div><label class="block text-xs font-medium text-slate-300 mb-1">Дата покупки</label><input type="date" id="accPurchased" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                    <div><label class="block text-xs font-medium text-slate-300 mb-1">Стоимость ($)</label><input type="number" step="0.01" id="accCost" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-300 mb-1">Инвойс (PDF или документ, до 5 МБ)</label>
+                    <input type="file" id="accInvoiceFile" accept="application/pdf,image/*" class="w-full text-xs text-slate-400 file:mr-4 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer bg-slate-950 border border-slate-800 rounded-xl">
+                </div>
+                <div class="border-t border-slate-800 pt-3 space-y-3">
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                        <input type="checkbox" id="accIsSub" onchange="toggleSubFields()" class="rounded bg-slate-950 border-slate-800 text-indigo-600">
+                        <span>Подписочный счёт (требует продления)</span>
+                    </label>
+                    <div id="subFieldsContainer" class="hidden grid grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-medium text-slate-300 mb-1">Стоимость продления ($)</label><input type="number" step="0.01" id="accSubCost" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                        <div><label class="block text-xs font-medium text-slate-300 mb-1">Дата продления</label><input type="date" id="accRenewsOn" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                    </div>
+                </div>
+                <div class="border-t border-slate-800 pt-3 space-y-3">
+                    <label class="flex items-center gap-2 cursor-pointer text-xs text-slate-300">
+                        <input type="checkbox" id="accMinTradeReq" onchange="toggleMinTradeFields()" class="rounded bg-slate-950 border-slate-800 text-indigo-600">
+                        <span>Требуется правило минимальной сделки</span>
+                    </label>
+                    <div id="minTradeFieldsContainer" class="hidden grid grid-cols-2 gap-3">
+                        <div><label class="block text-xs font-medium text-slate-300 mb-1">Каждые N дней</label><input type="number" id="accMinDays" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                        <div><label class="block text-xs font-medium text-slate-300 mb-1">Последняя мин. сделка</label><input type="date" id="accLastMinTrade" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                    </div>
+                </div>
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Заметки</label><textarea id="accNotes" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white h-16"></textarea></div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeAccountModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">Отмена</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: ADD RESET -->
+    <div id="resetModal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-base font-bold text-white">Зафиксировать сброс счёта</h3>
+                <button onclick="closeResetModal()" class="text-slate-400 hover:text-white"><i data-lucide="x" class="w-5 h-5"></i></button>
+            </div>
+            <form onsubmit="handleCreateReset(event)" class="space-y-3">
+                <input type="hidden" id="resetAccountId">
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Дата сброса</label><input type="date" id="resetDate" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Стоимость сброса ($)</label><input type="number" step="0.01" id="resetCost" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Инвойс / Ссылка</label><input type="text" id="resetInvoiceRef" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                <div><label class="block text-xs font-medium text-slate-300 mb-1">Заметка</label><input type="text" id="resetNote" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white"></div>
+                <div class="flex justify-end gap-2 pt-2">
+                    <button type="button" onclick="closeResetModal()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold">Отмена</button>
+                    <button type="submit" class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-xs font-semibold">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ПЛАВАЮЩАЯ КНОПКА «НАВЕРХ» -->
+    <button onclick="scrollToTop()" id="scrollTopBtn" title="Наверх"
+        class="fixed bottom-6 right-6 z-40 hidden p-3 rounded-2xl bg-indigo-600 text-white shadow-xl shadow-indigo-600/30 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center">
+        <i data-lucide="arrow-up" class="w-5 h-5"></i>
+    </button>
+
     <script>
-        // Инициализация Supabase (замени своими ключами или передавай окружением)
-        const SUPABASE_URL = 'https://твой-проект.supabase.co';
-        const SUPABASE_ANON_KEY = 'твой-anon-key';
+        const DEFAULT_SUPABASE_URL = 'https://bdcfpihcusurmxsafpfb.supabase.co';
+        const DEFAULT_SUPABASE_KEY = 'sb_publishable_fDSDr8EZiRjnTS7l4uFzAA_TeOJeDNu';
+
         let supabaseClient = null;
+        let isDemoMode = false;
+        let pendingActionType = null;
+        let tiltPanelTimer = null;
+        let pollInterval = null;
+        let currentLimitType = ''; 
 
-        try {
-            supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        } catch (e) {
-            console.error('Ошибка инициализации Supabase:', e);
+        let currentCalDate = new Date();
+        let allCalendarTrades = [];
+        let selectedDayKey = null;
+
+        let showSnapshots = localStorage.getItem('showSnapshots') !== 'false';
+        let cachedTags = [];
+        let allFirms = [];
+        let allAccountsOverview = [];
+
+        // Защита от гонки асинхронного рендера дня
+        let currentRenderToken = 0;
+
+        function tradingDay(date) {
+            const s = date.toLocaleString('sv-SE', { timeZone: 'America/Chicago' });
+            const d = new Date(s.replace(' ', 'T') + 'Z');
+            d.setUTCHours(d.getUTCHours() + 7);
+            return d.toISOString().slice(0, 10);
         }
 
-        // Глобальные переменные кеша
-        let currentTradesCache = [];
-        let currentSortField = 'opened_at';
-        let currentSortAsc = false;
-
-        // Экранирование текста
-        function esc(str) {
-            if (!str) return '';
-            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        function secondsToNextOpenCT() {
+            const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date());
+            const g = n => Number(p.find(x => x.type === n).value) % 24;
+            let sec = (17 - g('hour')) * 3600 - g('minute') * 60 - g('second');
+            if (sec <= 0) sec += 86400;
+            return sec;
         }
 
-        // Запуск при загрузке страницы
-        document.addEventListener('DOMContentLoaded', () => {
-            refreshAllData();
+        const esc = s => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+        lucide.createIcons();
+
+        window.addEventListener('load', async () => {
+            initSupabaseFromStorage();
+            startSessionClock();
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) showApp(); else showLogin();
         });
 
-        async function refreshAllData() {
-            await fetchTrades();
-            await fetchFreeSnapshots();
+        window.addEventListener('scroll', () => {
+            const btn = document.getElementById('scrollTopBtn');
+            if (btn) {
+                if (window.scrollY > 300) btn.classList.remove('hidden');
+                else btn.classList.add('hidden');
+            }
+        });
+
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // --- ТАБЛИЦА СДЕЛОК И СОРТИРОВКА ---
-        async function fetchTrades() {
-            if (!supabaseClient) return;
+        function switchTab(tabName) {
+            ['dashboard', 'calendar', 'accounts'].forEach(t => {
+                document.getElementById('view' + t.charAt(0).toUpperCase() + t.slice(1)).classList.add('hidden');
+                document.getElementById('nav' + t.charAt(0).toUpperCase() + t.slice(1)).className = "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all";
+            });
+            document.getElementById('view' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).classList.remove('hidden');
+            document.getElementById('nav' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).className = "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white shadow-sm transition-all";
             
-            // Пример запроса к представлению trade_summary
-            const { data, error } = await supabaseClient
-                .from('trade_summary')
-                .select('*')
-                .order('opened_at', { ascending: false });
+            if (tabName === 'calendar') {
+                renderCalendar();
+                fetchFreeSnapshots();
+            }
+            if (tabName === 'accounts') fetchAccountsData();
+            lucide.createIcons();
+        }
 
-            if (error) {
-                console.error('Ошибка загрузки сделок:', error);
+        function jumpToTodayInCalendar() {
+            switchTab('calendar');
+            const todayStr = tradingDay(new Date());
+            const [y, m] = todayStr.split('-').map(Number);
+            currentCalDate = new Date(y, m - 1, 1);
+            const todayTrades = allCalendarTrades.filter(t => t.opened_at && tradingDay(new Date(t.opened_at)) === todayStr);
+            selectCalendarDay(todayStr, todayTrades);
+        }
+
+        function startSessionClock() {
+            setInterval(() => {
+                const now = new Date();
+                const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
+                const ctDate = new Date(ctStr);
+                const currentHour = ctDate.getHours();
+
+                const labelEl = document.getElementById('sessionLabel');
+                const timerEl = document.getElementById('sessionCountdown');
+                const dotEl = document.getElementById('sessionStatusDot');
+
+                if (currentHour === 16) {
+                    const openTime = new Date(ctDate);
+                    openTime.setHours(17, 0, 0, 0);
+                    const diff = openTime - ctDate;
+                    const m = String(Math.floor((diff / (1000 * 60)) % 60)).padStart(2, '0');
+                    const s = String(Math.floor((diff / 1000) % 60)).padStart(2, '0');
+                    if (labelEl) labelEl.innerText = "Торги закрыты (перерыв)";
+                    if (timerEl) { timerEl.innerText = `00:${m}:${s}`; timerEl.className = "text-amber-400 font-bold"; }
+                    if (dotEl) dotEl.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+                } else {
+                    const closeTime = new Date(ctDate);
+                    closeTime.setHours(16, 0, 0, 0);
+                    if (currentHour >= 17) closeTime.setDate(closeTime.getDate() + 1);
+                    const diff = closeTime - ctDate;
+                    const h = String(Math.floor((diff / (1000 * 60 * 60)) % 24)).padStart(2, '0');
+                    const m = String(Math.floor((diff / (1000 * 60)) % 60)).padStart(2, '0');
+                    const s = String(Math.floor((diff / 1000) % 60)).padStart(2, '0');
+                    if (labelEl) labelEl.innerText = "Futures close";
+                    if (timerEl) { timerEl.innerText = `${h}:${m}:${s}`; timerEl.className = "text-cyan-400 font-bold"; }
+                    if (dotEl) dotEl.className = "w-2 h-2 rounded-full bg-cyan-400 animate-pulse";
+                }
+            }, 1000);
+        }
+
+        function confirmAction(type, message) {
+            if (currentLimitType === 'loss' || currentLimitType === 'profit') {
+                alert(`⚠️ Управление заблокировано: сработал системный лимит (${currentLimitType.toUpperCase()}).`);
+                return;
+            }
+            pendingActionType = type;
+            document.getElementById('confirmText').innerText = message;
+            document.getElementById('confirmModal').classList.remove('hidden');
+        }
+
+        function closeConfirmModal() {
+            document.getElementById('confirmModal').classList.add('hidden');
+            pendingActionType = null;
+        }
+
+        async function executeConfirmedAction() {
+            const type = pendingActionType;
+            closeConfirmModal();
+            await updateRiskStateInDB(type);
+        }
+
+        async function updateRiskStateInDB(type) {
+            updateSyncStatus('syncing');
+            if (isDemoMode || !supabaseClient) { updateSyncStatus('demo'); return; }
+            try {
+                let res;
+                if (type === 'manual_1h') res = await supabaseClient.rpc('lock_break', { p_minutes: 60 });
+                else if (type === 'session') res = await supabaseClient.rpc('lock_day');
+                else if (type === 'asia') res = await supabaseClient.rpc('lock_asia');
+                else return;
+                if (res.error) throw res.error;
+                await fetchData();
+                updateSyncStatus('success');
+            } catch (err) {
+                console.error('Ошибка блокировки:', err);
+                updateSyncStatus('error');
+                alert('Ошибка: ' + err.message);
+            }
+        }
+
+        function makeClient(url, key) {
+            supabaseClient = supabase.createClient(url, key);
+            supabaseClient.auth.onAuthStateChange((event, session) => {
+                if (event === 'SIGNED_OUT' || !session) showLogin();
+            });
+        }
+
+        function showLoginError(text) {
+            const el = document.getElementById('loginError');
+            el.innerText = text || '';
+            el.classList.toggle('opacity-0', !text);
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const email = document.getElementById('loginEmail').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const btn = document.getElementById('loginBtn');
+            showLoginError('');
+            btn.disabled = true; btn.innerText = 'Вход...';
+            try {
+                const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (error) throw error;
+                document.getElementById('loginPassword').value = '';
+                showApp();
+            } catch (err) {
+                showLoginError('Неверный email или пароль');
+            }
+            btn.disabled = false; btn.innerText = 'Войти';
+        }
+
+        function showApp() {
+            document.getElementById('loginOverlay').classList.add('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('mainApp').classList.remove('hidden');
+                fetchData();
+                fetchTagsList();
+                fetchReminders();
+                startPolling();
+            }, 300);
+        }
+
+        function showLogin() {
+            stopPolling();
+            document.getElementById('mainApp').classList.add('hidden');
+            const ov = document.getElementById('loginOverlay');
+            ov.classList.remove('hidden');
+            requestAnimationFrame(() => ov.classList.remove('opacity-0', 'pointer-events-none'));
+        }
+
+        async function lockSession() {
+            await supabaseClient.auth.signOut();
+            showLogin();
+        }
+
+        function initSupabaseFromStorage() {
+            const url = localStorage.getItem('supabase_url') || DEFAULT_SUPABASE_URL;
+            const key = localStorage.getItem('supabase_key') || DEFAULT_SUPABASE_KEY;
+            document.getElementById('supabaseUrlInput').value = url;
+            document.getElementById('supabaseKeyInput').value = key;
+            try { makeClient(url, key); isDemoMode = false; } catch (e) { isDemoMode = true; }
+        }
+
+        function openConfigModal() { document.getElementById('configModal').classList.remove('hidden'); }
+        function closeConfigModal() { document.getElementById('configModal').classList.add('hidden'); }
+
+        async function saveConfig() {
+            const url = document.getElementById('supabaseUrlInput').value.trim();
+            const key = document.getElementById('supabaseKeyInput').value.trim();
+            if (url && key) {
+                localStorage.setItem('supabase_url', url);
+                localStorage.setItem('supabase_key', key);
+                makeClient(url, key);
+                closeConfigModal();
+                fetchData();
+            }
+        }
+
+        async function fetchTagsList() {
+            if (!supabaseClient) return;
+            const { data } = await supabaseClient.from('tags').select('*').order('name');
+            cachedTags = data || [];
+        }
+
+        async function fetchReminders() {
+            if (!supabaseClient) return;
+            const { data } = await supabaseClient.from('account_reminders').select('*').order('days_left');
+            const banner = document.getElementById('remindersBanner');
+            const list = document.getElementById('remindersList');
+            if (!data || data.length === 0) {
+                banner.classList.add('hidden');
+                return;
+            }
+            banner.classList.remove('hidden');
+            list.innerHTML = data.map(r => `
+                <span class="inline-flex items-center gap-1 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-800">
+                    <b>${esc(r.firm)} (${esc(r.number)})</b>: ${r.kind === 'renewal' ? 'продление' : 'мин. сделка'} через <b>${r.days_left} дн.</b> (${r.due_on})
+                </span>
+            `).join('');
+        }
+
+        async function fetchData() {
+            updateSyncStatus('syncing');
+            if (isDemoMode || !supabaseClient) {
+                renderRiskStatus({ full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 });
+                renderTrades([]);
+                updateSyncStatus('demo');
                 return;
             }
 
-            currentTradesCache = data || [];
-            sortTrades(currentSortField, true); // Применяем текущую сортировку
+            try {
+                const { data: riskData, error: riskErr } = await supabaseClient
+                    .from('risk_control')
+                    .select('*')
+                    .eq('id', 1)
+                    .single();
+
+                if (riskErr) throw riskErr;
+
+                allCalendarTrades = [];
+                for (let i = 0; i < 3; i++) {
+                    const d = new Date();
+                    d.setMonth(d.getMonth() - i);
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, '0');
+                    const startStr = `${y}-${m}-01T00:00:00Z`;
+                    const endStr = `${y}-${m}-${new Date(y, d.getMonth()+1, 0).getDate()}T23:59:59Z`;
+
+                    let rangeStart = 0;
+                    let fetchMore = true;
+                    while (fetchMore) {
+                        const { data: chunk } = await supabaseClient
+                            .from('trade_summary')
+                            .select('*')
+                            .gte('opened_at', startStr)
+                            .lte('opened_at', endStr)
+                            .order('opened_at', { ascending: false })
+                            .range(rangeStart, rangeStart + 999);
+
+                        if (chunk && chunk.length > 0) {
+                            allCalendarTrades.push(...chunk);
+                            if (chunk.length < 1000) fetchMore = false;
+                            else rangeStart += 1000;
+                        } else {
+                            fetchMore = false;
+                        }
+                    }
+                }
+
+                allCalendarTrades = allCalendarTrades.filter(t => t.opened_at &&
+                    !String(t.account_name || '').toLowerCase().startsWith('playback'));
+
+                const today = tradingDay(new Date());
+                const todayRows = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === today);
+
+                renderRiskStatus(riskData);
+                renderTrades(todayRows);
+                renderCalendarGridOnly();
+                populateFreeAssignDropdown();
+
+                updateSyncStatus('success');
+            } catch (err) {
+                console.error('Ошибка чтения из базы:', err);
+                updateSyncStatus('error');
+            }
         }
 
-        function sortTrades(field, keepDirection = false) {
-            if (!keepDirection) {
-                if (currentSortField === field) {
-                    currentSortAsc = !currentSortAsc;
-                } else {
-                    currentSortField = field;
-                    currentSortAsc = (field === 'instrument' || field === 'group_no');
-                }
+        function startPolling() { 
+            if (!pollInterval) pollInterval = setInterval(fetchData, 10000);
+        }
+        function stopPolling() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
+
+        function updateSyncStatus(state) {
+            const dot = document.getElementById('syncDot');
+            const text = document.getElementById('syncText');
+            if (state === 'syncing') { dot.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"; text.innerText = "Обновление..."; }
+            else if (state === 'success') { dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500"; text.innerText = "Синхронизировано"; }
+            else if (state === 'demo') { dot.className = "w-1.5 h-1.5 rounded-full bg-indigo-400"; text.innerText = "Демо режим"; }
+            else { dot.className = "w-1.5 h-1.5 rounded-full bg-rose-500"; text.innerText = "Ошибка сети"; }
+        }
+
+        function renderRiskStatus(risk) {
+            if (!risk) risk = { full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 };
+            currentLimitType = risk.limit_type || '';
+
+            document.getElementById('lossLimitVal').innerText = `$${Number(risk.loss_limit || -1000).toLocaleString('en-US')}`;
+            document.getElementById('profitLimitVal').innerText = `+$${Number(risk.profit_limit || 1000).toLocaleString('en-US')}`;
+
+            const banner = document.getElementById('statusBanner');
+            const badge = document.getElementById('bannerBadge');
+            const title = document.getElementById('bannerTitle');
+            const desc = document.getElementById('bannerDesc');
+            const statCard = document.getElementById('statProtectionCard');
+            const statTitle = document.getElementById('statProtectionTitle');
+            const statSub = document.getElementById('statProtectionSub');
+            const buttonsContainer = document.getElementById('controlButtonsContainer');
+            const subText = document.getElementById('panelSubText');
+            const tiltBadge = document.getElementById('tiltTimerBadge');
+
+            if (tiltPanelTimer) { clearInterval(tiltPanelTimer); tiltPanelTimer = null; }
+
+            if (currentLimitType === 'loss' || currentLimitType === 'profit') {
+                buttonsContainer.style.opacity = '0.4';
+                buttonsContainer.style.pointerEvents = 'none';
+                subText.innerText = `🔒 Заблокировано системой (${currentLimitType.toUpperCase()} LIMIT)`;
+                subText.className = "text-[11px] text-rose-400 font-bold";
+            } else {
+                buttonsContainer.style.opacity = '1';
+                buttonsContainer.style.pointerEvents = 'auto';
+                const maxT = Number(risk.max_trades || 0), nT = Number(risk.stat_trades || 0), pk = Number(risk.stat_peak || 0);
+                let st = "Управление режимами в risk_control";
+                if (maxT) st = `Сделок сегодня: ${nT} из ${maxT} · пик дня ${pk >= 0 ? '+$' : '-$'}${Math.abs(pk).toFixed(0)}`;
+                subText.innerText = st;
+                subText.className = "text-[11px] text-slate-400";
             }
 
-            currentTradesCache.sort((a, b) => {
-                let valA = a[field];
-                let valB = b[field];
+            if (risk.full_stop || currentLimitType) {
+                tiltBadge.classList.remove('hidden');
+                const tick = () => {
+                    let sec = secondsToNextOpenCT();
+                    if (sec <= 0) {
+                        tiltBadge.innerText = "00:00:00";
+                        if (tiltPanelTimer) { clearInterval(tiltPanelTimer); tiltPanelTimer = null; }
+                        return;
+                    }
+                    const hh = String(Math.floor(sec / 3600)).padStart(2, '0');
+                    const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+                    const ss = String(sec % 60).padStart(2, '0');
+                    tiltBadge.innerText = `${hh}:${mm}:${ss}`;
+                };
+                tick();
+                tiltPanelTimer = setInterval(tick, 1000);
+            } else {
+                tiltBadge.classList.add('hidden');
+            }
 
-                if (field === 'net_now') {
-                    valA = Number(valA) === 0 ? 1 : 0;
-                    valB = Number(valB) === 0 ? 1 : 0;
-                } else if (field === 'cash' || field === 'ticks') {
-                    valA = valA !== null && valA !== undefined ? Number(valA) : -999999;
-                    valB = valB !== null && valB !== undefined ? Number(valB) : -999999;
-                } else if (field === 'opened_at') {
-                    valA = valA ? new Date(valA).getTime() : 0;
-                    valB = valB ? new Date(valB).getTime() : 0;
-                } else if (field === 'group_no') {
-                    valA = Number(valA || a.trade_no || 0);
-                    valB = Number(valB || b.trade_no || 0);
-                } else {
-                    valA = String(valA || '').toLowerCase();
-                    valB = String(valB || '').toLowerCase();
+            if (!risk.full_stop && !currentLimitType) {
+                banner.className = "p-5 rounded-2xl border bg-emerald-950/35 border-emerald-500/30 shadow-lg shadow-emerald-950/20";
+                badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                badge.innerText = "ALLOW";
+                title.innerText = "ТОРГОВЛЯ РАЗРЕШЕНА";
+                title.className = "text-2xl font-black tracking-tight text-emerald-400 pt-1";
+                desc.innerText = "Все лимиты рисков в норме. Контроллер готов принимать ордера.";
+                if (statCard) {
+                    statTitle.innerHTML = `<i data-lucide="shield-check" class="w-5 h-5 inline mr-1"></i><span class="text-emerald-400">АКТИВЕН</span>`;
+                    statSub.innerText = "Без кнопки сброса";
                 }
-
-                if (valA < valB) return currentSortAsc ? -1 : 1;
-                if (valA > valB) return currentSortAsc ? 1 : -1;
-                return 0;
-            });
-
-            renderTrades(currentTradesCache);
+            } else {
+                banner.className = "p-5 rounded-2xl border bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
+                badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
+                badge.innerText = currentLimitType.toUpperCase() + " STOP";
+                title.innerText = "ЗАЩИТА АКТИВНА";
+                title.className = "text-2xl font-black tracking-tight text-amber-300 pt-1";
+                desc.innerText = "Торговля остановлена контроллером.";
+            }
+            lucide.createIcons();
         }
 
         function renderTrades(trades) {
             const tbody = document.getElementById('tradesTableBody');
-            const badge = document.getElementById('tradesCountBadge');
-            badge.textContent = `${trades.length} сделок`;
+            const emptyState = document.getElementById('emptyTrades');
+            tbody.innerHTML = '';
 
             if (!trades || trades.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-slate-500">Нет данных за этот период</td></tr>`;
-                return;
-            }
-
-            tbody.innerHTML = trades.map(t => {
-                const cash = Number(t.cash || 0);
-                const cashColor = cash >= 0 ? 'text-emerald-400' : 'text-rose-400';
-                const ticks = t.ticks !== undefined && t.ticks !== null ? t.ticks : '—';
-                const isOpen = Number(t.net_now || 0) !== 0;
-                
-                return `
-                    <tr class="hover:bg-slate-800/40 transition-colors">
-                        <td class="py-3 px-4 font-mono text-xs text-indigo-300">#${t.group_no || '—'} <span class="text-slate-500">(${t.account || '—'})</span></td>
-                        <td class="py-3 px-4 font-medium text-slate-200">${esc(t.instrument || '—')}</td>
-                        <td class="py-3 px-4 text-slate-400 text-xs font-mono">${t.opened_at ? new Date(t.opened_at).toLocaleTimeString() : '—'}</td>
-                        <td class="py-3 px-4">
-                            ${isOpen ? '<span class="px-2 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] rounded-full font-mono">Open</span>' : '<span class="px-2 py-0.5 bg-slate-800 text-slate-400 text-[10px] rounded-full font-mono">Closed</span>'}
-                        </td>
-                        <td class="py-3 px-4 text-right font-mono text-xs text-slate-300">${ticks}</td>
-                        <td class="py-3 px-4 text-right font-mono font-semibold ${cashColor}">$${cash.toFixed(2)}</td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
-
-        // --- СВОБОДНЫЕ СНИМКИ (48 ЧАСОВ) ---
-        async function fetchFreeSnapshots() {
-            if (!supabaseClient) return;
-
-            const container = document.getElementById('freeSnapshotsGrid');
-            const emptyState = document.getElementById('emptyFreeSnapshots');
-
-            // Снимки за последние 48 часов
-            const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
-
-            const { data } = await supabaseClient
-                .from('snapshots')
-                .select('id, storage_path, taken_at, note')
-                .is('group_no', null)
-                .gte('taken_at', twoDaysAgo)
-                .order('taken_at', { ascending: false })
-                .range(0, 47);
-
-            populateFreeAssignDropdown();
-
-            if (!data || data.length === 0) {
-                container.innerHTML = '';
                 emptyState.classList.remove('hidden');
-                updateFreeSelectedCount();
+                updateStats(0, 0, 0, 0);
                 return;
             }
             emptyState.classList.add('hidden');
 
-            const paths = data.map(s => s.storage_path).filter(Boolean);
-            const { data: signedData } = await supabaseClient.storage.from('shots').createSignedUrls(paths, 3600);
-            
-            const signedMap = {};
-            if (signedData) {
-                signedData.forEach(item => { if (item.path && item.signedUrl) signedMap[item.path] = item.signedUrl; });
-            }
+            let totalPnL = 0, closedCount = 0, winCount = 0, activeCount = 0;
+            trades.forEach(t => {
+                const cash = Number(t.cash || 0);
+                const isClosed = Number(t.net_now) === 0;
+                if (isClosed) { totalPnL += cash; closedCount++; if (cash > 0) winCount++; } else { activeCount++; }
+                
+                const cashClass = !isClosed ? 'text-slate-500' : (cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400'));
+                const cashFormatted = !isClosed ? '—' : (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
+                
+                // РАСЧЕТ ТИКОВ
+                const ticksVal = t.ticks !== null && t.ticks !== undefined ? Number(t.ticks) : null;
+                const ticksClass = !isClosed || ticksVal === null ? 'text-slate-500' : (ticksVal > 0 ? 'text-emerald-400' : (ticksVal < 0 ? 'text-rose-400' : 'text-slate-400'));
+                const ticksFormatted = !isClosed || ticksVal === null ? '—' : (ticksVal >= 0 ? `+${ticksVal} t` : `${ticksVal} t`);
 
-            container.innerHTML = data.map(s => {
-                const url = signedMap[s.storage_path] || '';
-                const dateStr = s.taken_at ? new Date(s.taken_at).toLocaleString() : '—';
-                return `
-                    <div class="relative bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between group hover:border-indigo-500/50 transition-all">
-                        <label class="absolute top-2.5 left-2.5 z-10 cursor-pointer flex items-center justify-center bg-slate-900/90 p-1.5 rounded-lg border border-slate-700 shadow-md">
-                            <input type="checkbox" value="${s.id}" class="free-shot-checkbox w-4 h-4 text-indigo-600 rounded bg-slate-950 border-slate-700 focus:ring-0 cursor-pointer" onchange="updateFreeSelectedCount()">
-                        </label>
-                        <div class="p-2 pl-10 border-b border-slate-800 flex items-center justify-between text-[10px] text-slate-400 bg-slate-900/50">
-                            <span class="font-mono">${dateStr}</span>
-                            ${url ? `<a href="${url}" target="_blank" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>` : ''}
-                        </div>
-                        <div class="p-2 flex justify-center bg-slate-950 aspect-video">
-                            ${url ? `<img src="${url}" loading="lazy" class="w-full h-full object-contain rounded-lg">` : '<span class="text-xs text-slate-500">Загрузка...</span>'}
-                        </div>
-                        ${s.note ? `<div class="p-2 border-t border-slate-800 text-xs text-slate-300">${esc(s.note)}</div>` : ''}
-                    </div>
+                const openTime = t.opened_at ? new Date(t.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/30 transition-colors";
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-semibold text-white">#${esc(t.group_no || t.trade_no)}<span class="block text-[10px] text-slate-500">${esc(t.account_name || '')}</span></td>
+                    <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-slate-800 font-mono text-[11px]">${esc(t.instrument || 'NQ')}</span></td>
+                    <td class="py-3 px-4 text-slate-400">${openTime}</td>
+                    <td class="py-3 px-4">${isClosed ? 'Закрыта' : '<span class="text-indigo-400 font-bold">Открыта</span>'}</td>
+                    <td class="py-3 px-4 text-right font-bold font-mono ${ticksClass}">${ticksFormatted}</td>
+                    <td class="py-3 px-4 text-right font-bold font-mono ${cashClass}">${cashFormatted}</td>
                 `;
-            }).join('');
-
-            updateFreeSelectedCount();
-            lucide.createIcons();
+                tbody.appendChild(tr);
+            });
+            const winRate = closedCount > 0 ? Math.round((winCount / closedCount) * 100) : 0;
+            updateStats(totalPnL, trades.length, winRate, activeCount);
         }
 
+        function updateStats(pnl, total, winRate, active) {
+            const pnlEl = document.getElementById('statPnL');
+            pnlEl.innerText = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+            pnlEl.className = `text-xl font-bold ${pnl > 0 ? 'text-emerald-400' : (pnl < 0 ? 'text-rose-400' : 'text-slate-200')}`;
+            document.getElementById('statTotalTrades').innerText = total;
+            document.getElementById('statWinRate').innerText = `Win Rate: ${winRate}%`;
+            document.getElementById('statActiveTrades').innerText = active;
+        }
+
+        function changeMonth(delta) {
+            currentCalDate.setMonth(currentCalDate.getMonth() + delta);
+            renderCalendar();
+        }
+
+        function resetDaySelection() {
+            selectedDayKey = null;
+            renderCalendar();
+        }
+
+        function toggleSnapshotsMode() {
+            showSnapshots = !showSnapshots;
+            localStorage.setItem('showSnapshots', showSnapshots);
+            if (selectedDayKey) {
+                const dayTrades = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey);
+                loadAndRenderDayJournal(selectedDayKey, dayTrades);
+            } else {
+                renderCalendar();
+            }
+        }
+
+        function renderCalendar() {
+            renderCalendarGridOnly();
+            const year = currentCalDate.getFullYear();
+            const month = currentCalDate.getMonth();
+            const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+
+            if (!selectedDayKey) {
+                const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+                const monthTrades = allCalendarTrades.filter(t => t.opened_at && tradingDay(new Date(t.opened_at)).startsWith(monthPrefix));
+                loadAndRenderDayJournal(`Все сделки за ${monthNames[month]} ${year}`, monthTrades);
+            }
+        }
+
+        function renderCalendarGridOnly() {
+            const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+            const year = currentCalDate.getFullYear();
+            const month = currentCalDate.getMonth();
+
+            document.getElementById('calendarMonthLabel').innerText = `${monthNames[month]} ${year}`;
+
+            const dailyPnLMap = {};
+            const dailyTradesMap = {};
+            const dailyDistinctGroups = {};
+
+            allCalendarTrades.forEach(t => {
+                if (!t.opened_at) return;
+                const dayKey = tradingDay(new Date(t.opened_at));
+                if (!dailyPnLMap[dayKey]) {
+                    dailyPnLMap[dayKey] = 0;
+                    dailyTradesMap[dayKey] = [];
+                    dailyDistinctGroups[dayKey] = new Set();
+                }
+                dailyTradesMap[dayKey].push(t);
+                if (t.group_no) dailyDistinctGroups[dayKey].add(t.group_no);
+                if (Number(t.net_now) === 0) {
+                    dailyPnLMap[dayKey] += Number(t.cash || 0);
+                }
+            });
+
+            const firstDayIndex = new Date(year, month, 1).getDay();
+            const startDayOffset = (firstDayIndex === 0 ? 6 : firstDayIndex - 1);
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+
+            let monthPnL = 0, tradingDaysCount = 0, winDaysCount = 0, lossDaysCount = 0;
+
+            for (let i = 0; i < startDayOffset; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = "h-20 rounded-xl bg-slate-950/20 border border-slate-900/40";
+                grid.appendChild(emptyCell);
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const hasTrades = dailyTradesMap[dateStr] && dailyTradesMap[dateStr].length > 0;
+                const pnl = dailyPnLMap[dateStr] || 0;
+                const groupsCount = hasTrades ? dailyDistinctGroups[dateStr].size : 0;
+
+                const cell = document.createElement('div');
+                let bgClass = "bg-slate-900/60 border-slate-800/80 hover:border-slate-700";
+                let pnlClass = "text-slate-500";
+
+                if (hasTrades) {
+                    tradingDaysCount++;
+                    monthPnL += pnl;
+                    if (pnl > 0) {
+                        winDaysCount++;
+                        bgClass = "bg-emerald-950/30 border-emerald-500/30 hover:border-emerald-500/60";
+                        pnlClass = "text-emerald-400 font-bold";
+                    } else if (pnl < 0) {
+                        lossDaysCount++;
+                        bgClass = "bg-rose-950/30 border-rose-500/30 hover:border-rose-500/60";
+                        pnlClass = "text-rose-400 font-bold";
+                    } else {
+                        bgClass = "bg-slate-800/40 border-slate-700";
+                        pnlClass = "text-slate-300 font-bold";
+                    }
+                }
+
+                if (selectedDayKey === dateStr) {
+                    bgClass += " ring-2 ring-indigo-500 shadow-lg shadow-indigo-500/10";
+                }
+
+                cell.className = `h-20 rounded-xl border p-2 flex flex-col justify-between cursor-pointer transition-all ${bgClass}`;
+                cell.onclick = () => selectCalendarDay(dateStr, dailyTradesMap[dateStr] || []);
+
+                const pnlFormatted = hasTrades ? (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(0) : '—';
+
+                cell.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-mono font-bold text-slate-300">${day}</span>
+                        ${hasTrades ? `<span class="text-[9px] text-slate-500 font-mono">${groupsCount} сд.</span>` : ''}
+                    </div>
+                    <div class="text-xs font-mono text-right ${pnlClass}">
+                        ${pnlFormatted}
+                    </div>
+                `;
+                grid.appendChild(cell);
+            }
+
+            const monthPnLEl = document.getElementById('calMonthPnL');
+            monthPnLEl.innerText = (monthPnL >= 0 ? '+$' : '-$') + Math.abs(monthPnL).toFixed(2);
+            monthPnLEl.className = `text-base font-bold font-mono ${monthPnL > 0 ? 'text-emerald-400' : (monthPnL < 0 ? 'text-rose-400' : 'text-slate-300')}`;
+
+            document.getElementById('calTradingDays').innerText = tradingDaysCount;
+            document.getElementById('calWinDays').innerText = winDaysCount;
+            document.getElementById('calLossDays').innerText = lossDaysCount;
+        }
+
+        function selectCalendarDay(dateStr, trades) {
+            selectedDayKey = dateStr;
+            renderCalendarGridOnly();
+            loadAndRenderDayJournal(`Сделки за день ${dateStr}`, trades);
+            document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        async function loadAndRenderDayJournal(titleText, trades) {
+            const thisToken = ++currentRenderToken;
+
+            const titleEl = document.getElementById('selectedDayTitle');
+            const container = document.getElementById('dayTradesContainer');
+            const emptyState = document.getElementById('emptyDayTrades');
+
+            if (titleEl) titleEl.innerText = titleText;
+
+            let dayPnL = 0;
+            if (trades) {
+                trades.forEach(t => {
+                    if (Number(t.net_now) === 0) dayPnL += Number(t.cash || 0);
+                });
+            }
+            renderHeaderControls(dayPnL);
+
+            if (!trades || trades.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            const groupsMap = {};
+            trades.forEach(t => {
+                if (!t.group_no) return;
+                if (!groupsMap[t.group_no]) {
+                    groupsMap[t.group_no] = {
+                        group_no: t.group_no,
+                        instrument: t.instrument,
+                        direction: t.direction,
+                        opened_at: t.opened_at,
+                        closed_at: t.closed_at,
+                        net_now: t.net_now,
+                        cash: 0,
+                        ticks: t.ticks,
+                        rows: []
+                    };
+                }
+                groupsMap[t.group_no].rows.push(t);
+                groupsMap[t.group_no].cash += Number(t.cash || 0);
+                if (t.ticks !== undefined && t.ticks !== null) groupsMap[t.group_no].ticks = t.ticks;
+                if (Number(t.net_now) !== 0) groupsMap[t.group_no].net_now = t.net_now;
+                if (t.closed_at && (!groupsMap[t.group_no].closed_at || new Date(t.closed_at) > new Date(groupsMap[t.group_no].closed_at))) {
+                    groupsMap[t.group_no].closed_at = t.closed_at;
+                }
+            });
+
+            const groupKeys = Object.keys(groupsMap);
+            let shotsDBData = {};
+            let tagsDBData = {};
+            let notesDBData = {};
+
+            if (supabaseClient && groupKeys.length > 0) {
+                const numericGroupKeys = groupKeys.map(Number);
+
+                const [jRes, tsRes, snapRes] = await Promise.all([
+                    supabaseClient.from('trade_journal').select('group_no, note, trade_tags(tags(id, name))').in('group_no', numericGroupKeys),
+                    supabaseClient.from('trade_shots').select('id, group_no, storage_path, kind, taken_at').in('group_no', numericGroupKeys),
+                    supabaseClient.from('snapshots').select('id, group_no, storage_path, taken_at, note').in('group_no', numericGroupKeys)
+                ]);
+
+                if (thisToken !== currentRenderToken) return;
+
+                if (jRes.data) {
+                    jRes.data.forEach(j => {
+                        tagsDBData[j.group_no] = j.trade_tags ? j.trade_tags.map(tt => tt.tags) : [];
+                        notesDBData[j.group_no] = j.note || '';
+                    });
+                }
+
+                numericGroupKeys.forEach(gNo => {
+                    const groupShots = (tsRes.data || []).filter(s => Number(s.group_no) === gNo);
+                    const groupSnaps = (snapRes.data || []).filter(s => Number(s.group_no) === gNo).map(s => ({
+                        id: s.id,
+                        group_no: s.group_no,
+                        storage_path: s.storage_path,
+                        kind: 'manual',
+                        taken_at: s.taken_at,
+                        is_snapshot_table: true
+                    }));
+
+                    const combined = [...groupShots, ...groupSnaps].sort((a, b) => {
+                        const order = { 'open': 1, 'manual': 2, 'other': 2, 'after': 3 };
+                        const orderA = order[a.kind] || 4;
+                        const orderB = order[b.kind] || 4;
+                        if (orderA !== orderB) return orderA - orderB;
+                        return new Date(a.taken_at || 0) - new Date(b.taken_at || 0);
+                    });
+
+                    shotsDBData[gNo] = combined;
+                });
+            }
+
+            if (thisToken !== currentRenderToken) return;
+
+            const allPaths = [];
+            Object.values(shotsDBData).forEach(arr => {
+                arr.forEach(s => { if (s.storage_path) allPaths.push(s.storage_path); });
+            });
+
+            const signedUrlsMap = {};
+            if (showSnapshots && allPaths.length > 0 && supabaseClient) {
+                const { data: signedData } = await supabaseClient.storage.from('shots').createSignedUrls(allPaths, 3600);
+                if (signedData) {
+                    signedData.forEach(item => {
+                        if (item.path && item.signedUrl) signedUrlsMap[item.path] = item.signedUrl;
+                    });
+                }
+            }
+
+            if (thisToken !== currentRenderToken) return;
+
+            container.innerHTML = '';
+
+            for (const gKey of groupKeys) {
+                const g = groupsMap[gKey];
+                const cash = g.cash;
+                const isClosed = Number(g.net_now) === 0;
+                const openTime = g.opened_at ? new Date(g.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+
+                let durationStr = '—';
+                if (g.opened_at && g.closed_at) {
+                    const diffMs = new Date(g.closed_at) - new Date(g.opened_at);
+                    if (diffMs > 0) {
+                        const totalSec = Math.floor(diffMs / 1000);
+                        const mins = Math.floor(totalSec / 60);
+                        const secs = totalSec % 60;
+                        durationStr = mins > 0 ? `${mins} мин ${secs} сек` : `${secs} сек`;
+                    }
+                } else if (!isClosed) {
+                    durationStr = '<span class="text-indigo-400 font-bold">Активна</span>';
+                }
+
+                const isLong = String(g.direction || '').toUpperCase() === 'LONG' || Number(g.rows[0]?.side) > 0;
+                const dirBadge = isLong 
+                    ? `<span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold font-mono">LONG ▲</span>`
+                    : `<span class="px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold font-mono">SHORT ▼</span>`;
+
+                const cashClass = !isClosed ? 'text-slate-500' : (cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400'));
+                const cashStr = !isClosed ? '—' : (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
+
+                // Оотображение тиков в карточке журнала
+                const ticksVal = g.ticks !== null && g.ticks !== undefined ? Number(g.ticks) : null;
+                const ticksClass = !isClosed || ticksVal === null ? 'text-slate-500' : (ticksVal > 0 ? 'text-emerald-400' : (ticksVal < 0 ? 'text-rose-400' : 'text-slate-400'));
+                const ticksStr = !isClosed || ticksVal === null ? '—' : (ticksVal >= 0 ? `+${ticksVal} t` : `${ticksVal} t`);
+
+                const cardDiv = document.createElement('div');
+                cardDiv.className = "bg-slate-950/50 border border-slate-800 rounded-2xl p-4 space-y-3";
+                
+                let tagsHtml = '';
+                const currentTags = tagsDBData[g.group_no] || [];
+                currentTags.forEach(tag => {
+                    tagsHtml += `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-mono">
+                        ${esc(tag.name)} <button type="button" data-group="${g.group_no}" data-tagid="${tag.id}" class="remove-tag-btn hover:text-white">&times;</button>
+                    </span>`;
+                });
+
+                let snapshotHtml = '';
+                if (showSnapshots) {
+                    const shots = shotsDBData[g.group_no] || [];
+                    
+                    let imagesListHtml = '';
+                    if (shots.length > 0) {
+                        imagesListHtml = `<div class="space-y-3 mb-3">`;
+                        for (const shot of shots) {
+                            const signedUrl = signedUrlsMap[shot.storage_path] || '';
+                            const kindTitle = shot.kind === 'open' ? 'Вход (open)' : (shot.kind === 'after' ? 'После закрытия (after)' : (shot.kind === 'manual' ? 'Ручной (manual)' : 'Другое (other)'));
+                            
+                            imagesListHtml += `
+                                <div class="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+                                    <div class="bg-slate-900/90 px-3 py-1.5 text-[10px] text-slate-400 flex items-center justify-between border-b border-slate-800">
+                                        <span class="font-semibold text-slate-300">График: ${kindTitle}</span>
+                                        <div class="flex items-center gap-2">
+                                            ${signedUrl ? `<a href="${signedUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>` : ''}
+                                            <button type="button" data-shotid="${shot.id}" data-path="${esc(shot.storage_path)}" data-issnap="${shot.is_snapshot_table ? '1' : '0'}" data-group="${g.group_no}" class="delete-shot-btn text-rose-400 hover:text-rose-300">Удалить</button>
+                                        </div>
+                                    </div>
+                                    <div class="p-2 flex justify-center bg-slate-950">
+                                        ${signedUrl ? `<img src="${signedUrl}" loading="lazy" alt="Скриншот графика" class="w-full h-auto object-contain rounded-lg">` : '<div class="p-4 text-xs text-slate-500">Загрузка изображения...</div>'}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                        imagesListHtml += `</div>`;
+                    }
+
+                    snapshotHtml = `
+                        <div class="space-y-3 mt-3">
+                            ${imagesListHtml}
+                            <div class="p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-500 space-y-3">
+                                <div class="flex items-center justify-center gap-2">
+                                    <i data-lucide="camera" class="w-4 h-4 opacity-40"></i>
+                                    <span>Загрузить график в сделку:</span>
+                                </div>
+                                <div class="flex flex-wrap items-center justify-center gap-2">
+                                    <select id="uploadKind_${g.group_no}" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 font-mono">
+                                        <option value="open">Вход (open)</option>
+                                        <option value="manual" selected>Ручной (manual)</option>
+                                        <option value="after">После закрытия (after)</option>
+                                        <option value="other">Другое (other)</option>
+                                    </select>
+                                    <input type="file" accept="image/png, image/jpeg, image/webp" data-group="${g.group_no}" class="shot-file-input text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer bg-slate-950 border border-slate-800 rounded-lg">
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.max_qty ? r.net_now : r.max_qty} контр.)`).join(', ');
+                const currentNote = notesDBData[g.group_no] || '';
+
+                cardDiv.innerHTML = `
+                    <div class="flex items-center justify-between border-b border-slate-800/60 pb-3">
+                        <div class="flex items-center space-x-3">
+                            <span class="px-2.5 py-1 rounded-lg bg-slate-800 font-mono font-bold text-white text-xs">#${g.group_no}</span>
+                            ${dirBadge}
+                            <div>
+                                <span class="font-bold text-white text-xs">${esc(g.instrument || 'NQ')}</span>
+                                <span class="text-xs text-slate-300 font-medium ml-2 font-mono">Счета: ${accountsListStr}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-4 text-right">
+                            <div class="hidden sm:block text-xs font-mono text-slate-400">
+                                <div>${openTime}</div>
+                                <div class="text-[10px] text-slate-500">⏱ ${durationStr}</div>
+                            </div>
+                            <!-- ТИКИ СЛЕВА ОТ cash -->
+                            <div class="font-bold font-mono text-base ${ticksClass}">
+                                ${ticksStr}
+                            </div>
+                            <!-- ФИНАНСОВЫЙ РЕЗУЛЬТАТ -->
+                            <div class="font-bold font-mono text-lg ${cashClass} min-w-[90px]">
+                                ${cashStr}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ТЕГИ -->
+                    <div class="flex flex-wrap items-center gap-2 pt-1">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase">Теги:</span>
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            ${tagsHtml}
+                        </div>
+                        <div class="relative inline-block">
+                            <input type="text" data-group="${g.group_no}" placeholder="+ добавить тег..." 
+                                autocomplete="off"
+                                data-lpignore="true"
+                                class="tag-input bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 w-48">
+                            
+                            <div class="tag-dropdown hidden absolute left-0 mt-1 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-20 max-h-40 overflow-y-auto"></div>
+                        </div>
+                    </div>
+
+                    <!-- ЗАМЕТКА -->
+                    <div class="pt-1">
+                        <div id="noteView_${g.group_no}" class="flex items-start justify-between bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 text-xs text-slate-300">
+                            <div class="flex-1 pr-3 whitespace-pre-wrap">${currentNote ? esc(currentNote) : '<span class="text-slate-600 italic">Комментарий не добавлен...</span>'}</div>
+                            <button type="button" data-group="${g.group_no}" class="edit-note-btn text-indigo-400 hover:text-indigo-300 text-[11px] font-semibold flex items-center gap-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit
+                            </button>
+                        </div>
+                        <div id="noteEdit_${g.group_no}" class="hidden space-y-2">
+                            <textarea id="noteTextarea_${g.group_no}" placeholder="Заметка к сделке (эмоции, сетап, ошибки)..." 
+                                class="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 h-20 resize-y">${esc(currentNote)}</textarea>
+                            <div class="flex justify-end gap-2">
+                                <button type="button" data-group="${g.group_no}" class="cancel-note-btn px-3 py-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white text-xs font-semibold">Отмена</button>
+                                <button type="button" data-group="${g.group_no}" class="save-note-btn px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold">Сохранить</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- СКРИНШОТЫ -->
+                    ${snapshotHtml}
+                `;
+                container.appendChild(cardDiv);
+            }
+
+            bindJournalEvents();
+            lucide.createIcons();
+        }
+async function fetchFreeSnapshots() {
+    if (!supabaseClient) return;
+
+    const container = document.getElementById('freeSnapshotsGrid');
+    const emptyState = document.getElementById('emptyFreeSnapshots');
+
+    // === Берем снимки за последние 2 дня (48 часов назад) ===
+    const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+
+    // === Запрос к базе ===
+    const { data } = await supabaseClient
+        .from('snapshots')
+        .select('id, storage_path, taken_at, note')
+        .is('group_no', null)
+        .gte('taken_at', twoDaysAgo) // всё, что новее 48 часов
+        .order('taken_at', { ascending: false })
+        .range(0, 47);
+
+    populateFreeAssignDropdown();
+
+    if (!data || data.length === 0) {
+        container.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        updateFreeSelectedCount();
+        return;
+    }
+    emptyState.classList.add('hidden');
+
+    const paths = data.map(s => s.storage_path).filter(Boolean);
+    const { data: signedData } = await supabaseClient.storage.from('shots').createSignedUrls(paths, 3600);
+    
+    const signedMap = {};
+    if (signedData) {
+        signedData.forEach(item => { if (item.path && item.signedUrl) signedMap[item.path] = item.signedUrl; });
+    }
+
+    container.innerHTML = data.map(s => {
+        const url = signedMap[s.storage_path] || '';
+        const dateStr = s.taken_at ? new Date(s.taken_at).toLocaleString() : '—';
+        return `
+            <div class="relative bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between group hover:border-indigo-500/50 transition-all">
+                <label class="absolute top-2.5 left-2.5 z-10 cursor-pointer flex items-center justify-center bg-slate-900/90 p-1.5 rounded-lg border border-slate-700 shadow-md">
+                    <input type="checkbox" value="${s.id}" class="free-shot-checkbox w-4 h-4 text-indigo-600 rounded bg-slate-950 border-slate-700 focus:ring-0 cursor-pointer" onchange="updateFreeSelectedCount()">
+                </label>
+                <div class="p-2 pl-10 border-b border-slate-800 flex items-center justify-between text-[10px] text-slate-400 bg-slate-900/50">
+                    <span class="font-mono">${dateStr}</span>
+                    ${url ? `<a href="${url}" target="_blank" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>` : ''}
+                </div>
+                <div class="p-2 flex justify-center bg-slate-950 aspect-video">
+                    ${url ? `<img src="${url}" loading="lazy" class="w-full h-full object-contain rounded-lg">` : '<span class="text-xs text-slate-500">Загрузка...</span>'}
+                </div>
+                ${s.note ? `<div class="p-2 border-t border-slate-800 text-xs text-slate-300">${esc(s.note)}</div>` : ''}
+            </div>
+        `;
+    }).join('');
+
+    updateFreeSelectedCount();
+    lucide.createIcons();
+}
         function populateFreeAssignDropdown() {
             const select = document.getElementById('freeTargetGroupSelect');
             if (!select) return;
-            
-            // Заполняем выпадающий список номерами сделок из текущего кеша
-            const optionsHtml = ['<option value="">-- Выберите сделку --</option>'] + 
-                currentTradesCache.map(t => `<option value="${t.group_no}">Сделка #${t.group_no} (${t.instrument || 'NQ'})</option>`).join('');
-            
-            select.innerHTML = optionsHtml;
+            const currentVal = select.value;
+
+            const groups = [...new Set(allCalendarTrades.map(t => t.group_no).filter(Boolean))].sort((a, b) => b - a);
+
+            select.innerHTML = `<option value="">-- Выберите сделку --</option>` +
+                groups.map(g => `<option value="${g}">Сделка #${g}</option>`).join('');
+
+            if (groups.includes(Number(currentVal))) {
+                select.value = currentVal;
+            }
         }
 
         function updateFreeSelectedCount() {
             const checked = document.querySelectorAll('.free-shot-checkbox:checked');
-            const countText = document.getElementById('freeSelectedCountText');
-            if (countText) {
-                countText.textContent = `Выбрано: ${checked.length}`;
-            }
+            const countEl = document.getElementById('freeSelectedCount');
+            if (countEl) countEl.innerText = checked.length;
         }
 
         async function assignSelectedFreeSnapshots() {
@@ -338,6 +1528,395 @@
                 alert('Ошибка привязки снимков: ' + error.message);
             } else {
                 await fetchFreeSnapshots();
+                reloadCurrentDayJournal();
+            }
+        }
+
+        function bindJournalEvents() {
+            document.querySelectorAll('.edit-note-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const groupNo = btn.getAttribute('data-group');
+                    document.getElementById(`noteView_${groupNo}`).classList.add('hidden');
+                    document.getElementById(`noteEdit_${groupNo}`).classList.remove('hidden');
+                };
+            });
+
+            document.querySelectorAll('.cancel-note-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const groupNo = btn.getAttribute('data-group');
+                    document.getElementById(`noteEdit_${groupNo}`).classList.add('hidden');
+                    document.getElementById(`noteView_${groupNo}`).classList.remove('hidden');
+                };
+            });
+
+            document.querySelectorAll('.save-note-btn').forEach(btn => {
+                btn.onclick = async () => {
+                    const groupNo = btn.getAttribute('data-group');
+                    const noteText = document.getElementById(`noteTextarea_${groupNo}`).value.trim();
+                    if (supabaseClient) {
+                        await supabaseClient.from('trade_journal').upsert({
+                            group_no: Number(groupNo),
+                            note: noteText
+                        }, { onConflict: 'group_no' });
+                        reloadCurrentDayJournal();
+                    }
+                };
+            });
+
+            document.querySelectorAll('.remove-tag-btn').forEach(btn => {
+                btn.onclick = async () => {
+                    const groupNo = btn.getAttribute('data-group');
+                    const tagId = btn.getAttribute('data-tagid');
+                    if (supabaseClient) {
+                        await supabaseClient.from('trade_tags').delete().match({ group_no: groupNo, tag_id: tagId });
+                        reloadCurrentDayJournal();
+                    }
+                };
+            });
+
+            document.querySelectorAll('.tag-input').forEach(input => {
+                const gKey = input.getAttribute('data-group');
+                const dropdown = input.nextElementSibling;
+
+                input.onfocus = () => {
+                    if (!dropdown) return;
+                    dropdown.innerHTML = '';
+                    cachedTags.forEach(tag => {
+                        const div = document.createElement('div');
+                        div.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
+                        div.innerText = tag.name;
+                        div.onmousedown = async (e) => {
+                            e.preventDefault();
+                            await addTagToDB(gKey, tag.name);
+                            dropdown.classList.add('hidden');
+                        };
+                        dropdown.appendChild(div);
+                    });
+                    dropdown.classList.remove('hidden');
+                };
+
+                input.oninput = async (e) => {
+                    const val = e.target.value;
+                    if (val.includes(',')) {
+                        const newTagName = val.replace(/,/g, '').trim();
+                        if (newTagName) await addTagToDB(gKey, newTagName);
+                        e.target.value = '';
+                        dropdown.classList.add('hidden');
+                        return;
+                    }
+                    const q = val.trim().toLowerCase();
+                    const filtered = cachedTags.filter(t => t.name.toLowerCase().includes(q));
+                    dropdown.innerHTML = '';
+                    filtered.forEach(tag => {
+                        const div = document.createElement('div');
+                        div.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
+                        div.innerText = tag.name;
+                        div.onmousedown = async (e) => {
+                            e.preventDefault();
+                            await addTagToDB(gKey, tag.name);
+                            dropdown.classList.add('hidden');
+                        };
+                        dropdown.appendChild(div);
+                    });
+                    dropdown.classList.toggle('hidden', filtered.length === 0);
+                };
+
+                input.onkeydown = async (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const newTagName = input.value.replace(/,/g, '').trim();
+                        if (newTagName) {
+                            await addTagToDB(gKey, newTagName);
+                            input.value = '';
+                            dropdown.classList.add('hidden');
+                        }
+                    }
+                };
+
+                input.onblur = () => {
+                    setTimeout(() => dropdown.classList.add('hidden'), 200);
+                };
+            });
+
+            document.querySelectorAll('.shot-file-input').forEach(fileInput => {
+                fileInput.onchange = async (e) => {
+                    const file = e.target.files[0];
+                    const groupNo = fileInput.getAttribute('data-group');
+                    if (!file || !supabaseClient) return;
+
+                    const kindSelect = document.getElementById(`uploadKind_${groupNo}`);
+                    const selectedKind = kindSelect ? kindSelect.value : 'other';
+
+                    try {
+                        const fileExt = file.name.split('.').pop() || 'jpg';
+                        const fileName = `${groupNo}/${crypto.randomUUID()}.${fileExt}`;
+
+                        const { error: uploadErr } = await supabaseClient.storage.from('shots').upload(fileName, file, {
+                            contentType: file.type,
+                            upsert: false
+                        });
+                        if (uploadErr) throw uploadErr;
+
+                        await supabaseClient.from('trade_shots').insert({
+                            group_no: Number(groupNo),
+                            storage_path: fileName,
+                            bytes: file.size,
+                            kind: selectedKind
+                        });
+
+                        reloadCurrentDayJournal();
+                    } catch (err) {
+                        alert('Ошибка загрузки скриншота: ' + err.message);
+                    }
+                };
+            });
+
+            document.querySelectorAll('.delete-shot-btn').forEach(btn => {
+                btn.onclick = async () => {
+                    if (!confirm('Удалить этот скриншот графика?')) return;
+                    const shotId = btn.getAttribute('data-shotid');
+                    const path = btn.getAttribute('data-path');
+                    const isSnap = btn.getAttribute('data-issnap') === '1';
+
+                    if (supabaseClient) {
+                        await supabaseClient.storage.from('shots').remove([path]);
+                        if (isSnap) {
+                            await supabaseClient.from('snapshots').delete().eq('id', shotId);
+                        } else {
+                            await supabaseClient.from('trade_shots').delete().eq('id', shotId);
+                        }
+                        reloadCurrentDayJournal();
+                    }
+                };
+            });
+        }
+
+        async function addTagToDB(groupNo, tagName) {
+            if (!supabaseClient) return;
+            await supabaseClient.from('trade_journal').upsert({ group_no: Number(groupNo) }, { onConflict: 'group_no', ignoreDuplicates: true });
+
+            let { data: tagRecord } = await supabaseClient.from('tags').select('id').eq('name', tagName).single();
+            if (!tagRecord) {
+                const { data: newTag, error } = await supabaseClient.from('tags').insert({ name: tagName }).select('id').single();
+                if (error) { alert('Неверное имя тега'); return; }
+                tagRecord = newTag;
+                await fetchTagsList();
+            }
+            await supabaseClient.from('trade_tags').upsert({ group_no: Number(groupNo), tag_id: tagRecord.id }, { onConflict: 'group_no,tag_id', ignoreDuplicates: true });
+            reloadCurrentDayJournal();
+        }
+
+        function reloadCurrentDayJournal() {
+            if (selectedDayKey) {
+                const dayTrades = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey);
+                loadAndRenderDayJournal(`Сделки за день ${selectedDayKey}`, dayTrades);
+            } else {
+                renderCalendar();
+            }
+        }
+
+        function renderHeaderControls(pnl) {
+            const cardHeader = document.getElementById('dayControlsHeader');
+            if (!cardHeader) return;
+
+            const cashFormatted = (pnl >= 0 ? '+$' : '-$') + Math.abs(pnl).toFixed(2);
+            const pnlBadgeClass = pnl > 0 
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                : (pnl < 0 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' : 'bg-slate-800 text-slate-300 border border-slate-700');
+
+            cardHeader.innerHTML = `
+                <label class="flex items-center gap-2 cursor-pointer bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 text-xs text-slate-300 font-semibold transition-all">
+                    <input type="checkbox" onchange="toggleSnapshotsMode()" ${showSnapshots ? 'checked' : ''} class="rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-0 w-4 h-4">
+                    <span>📷 Графики</span>
+                </label>
+                <button onclick="resetDaySelection()" class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all flex items-center gap-1.5">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Показать весь месяц
+                </button>
+                <span id="selectedDayPnLBadge" class="px-3 py-1.5 rounded-xl text-sm font-bold font-mono ${pnlBadgeClass}">
+                    ${cashFormatted}
+                </span>
+            `;
+        }
+
+        async function fetchAccountsData() {
+            if (!supabaseClient) return;
+            const [fRes, aRes] = await Promise.all([
+                supabaseClient.from('firms').select('*').order('name'),
+                supabaseClient.from('accounts_overview').select('*').order('firm')
+            ]);
+            allFirms = fRes.data || [];
+            allAccountsOverview = aRes.data || [];
+            renderAccountsTable();
+        }
+
+        function renderAccountsTable() {
+            const tbody = document.getElementById('accountsTableBody');
+            const emptyState = document.getElementById('emptyAccounts');
+            tbody.innerHTML = '';
+
+            if (!allAccountsOverview || allAccountsOverview.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+
+            allAccountsOverview.forEach(acc => {
+                const statusBadge = acc.status === 'active' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                                    acc.status === 'passed' ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20' :
+                                    acc.status === 'blown' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-slate-800 text-slate-400';
+
+                const resetsBadge = acc.many_resets 
+                    ? `<span class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold border border-rose-500/30">${acc.resets} (Много!)</span>` 
+                    : `<span class="px-2 py-0.5 rounded bg-slate-800">${acc.resets}</span>`;
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-800/30 transition-colors";
+                tr.innerHTML = `
+                    <td class="py-3 px-4 font-semibold text-white">
+                        ${esc(acc.number)}
+                        <span class="block text-[10px] text-slate-400">${esc(acc.firm)}</span>
+                    </td>
+                    <td class="py-3 px-4">
+                        <span class="px-2 py-0.5 rounded font-mono text-[10px] uppercase ${statusBadge}">${acc.kind} / ${acc.status}</span>
+                    </td>
+                    <td class="py-3 px-4 font-mono">
+                        <div>$${Number(acc.cost || 0).toFixed(2)} <span class="text-[10px] text-slate-500">(покупка)</span></div>
+                        <div class="text-indigo-400 font-bold">Итог: $${Number(acc.total_cost || 0).toFixed(2)}</div>
+                    </td>
+                    <td class="py-3 px-4 font-mono">
+                        <div class="flex items-center gap-2">
+                            ${resetsBadge}
+                            <button onclick="openResetModal(${acc.id})" class="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-indigo-300">+ сброс</button>
+                        </div>
+                    </td>
+                    <td class="py-3 px-4 font-mono text-[11px] text-slate-300">
+                        <div>Продл: ${acc.renews_on || '—'}</div>
+                        <div class="text-slate-400">Мин.сделка: ${acc.next_min_trade_due || '—'}</div>
+                    </td>
+                    <td class="py-3 px-4 text-right">
+                        <button onclick="deleteAccount(${acc.id})" class="p-1.5 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20" title="Удалить счёт"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons();
+        }
+
+        function openFirmModal() { document.getElementById('firmModal').classList.remove('hidden'); }
+        function closeFirmModal() { document.getElementById('firmModal').classList.add('hidden'); }
+
+        async function handleCreateFirm(e) {
+            e.preventDefault();
+            const name = document.getElementById('firmName').value.trim();
+            const website = document.getElementById('firmWebsite').value.trim();
+            const notes = document.getElementById('firmNotes').value.trim();
+
+            if (supabaseClient && name) {
+                const { error } = await supabaseClient.from('firms').insert({ name, website, notes });
+                if (error) { alert('Ошибка: ' + error.message); return; }
+                closeFirmModal();
+                fetchAccountsData();
+            }
+        }
+
+        function openAccountModal() {
+            const sel = document.getElementById('accFirmId');
+            sel.innerHTML = allFirms.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('');
+            document.getElementById('accountModal').classList.remove('hidden');
+        }
+        function closeAccountModal() { document.getElementById('accountModal').classList.add('hidden'); }
+
+        function toggleSubFields() {
+            const isSub = document.getElementById('accIsSub').checked;
+            document.getElementById('subFieldsContainer').classList.toggle('hidden', !isSub);
+        }
+        function toggleMinTradeFields() {
+            const req = document.getElementById('accMinTradeReq').checked;
+            document.getElementById('minTradeFieldsContainer').classList.toggle('hidden', !req);
+        }
+
+        async function handleCreateAccount(e) {
+            e.preventDefault();
+            const firm_id = Number(document.getElementById('accFirmId').value);
+            const number = document.getElementById('accNumber').value.trim();
+            const kind = document.getElementById('accKind').value;
+            const status = document.getElementById('accStatus').value;
+            const purchased_at = document.getElementById('accPurchased').value || null;
+            const cost = document.getElementById('accCost').value ? Number(document.getElementById('accCost').value) : null;
+            const fileInput = document.getElementById('accInvoiceFile');
+            
+            const is_subscription = document.getElementById('accIsSub').checked;
+            const subscription_cost = document.getElementById('accSubCost').value ? Number(document.getElementById('accSubCost').value) : null;
+            const renews_on = document.getElementById('accRenewsOn').value || null;
+            const min_trade_required = document.getElementById('accMinTradeReq').checked;
+            const min_trade_every_days = document.getElementById('accMinDays').value ? Number(document.getElementById('accMinDays').value) : null;
+            const last_min_trade_on = document.getElementById('accLastMinTrade').value || null;
+            const notes = document.getElementById('accNotes').value.trim();
+
+            if (supabaseClient && number) {
+                try {
+                    let invoice_path = null;
+                    if (fileInput.files && fileInput.files[0]) {
+                        const file = fileInput.files[0];
+                        if (file.size > 5 * 1024 * 1024) {
+                            alert('Файл инвойса превышает лимит в 5 МБ.');
+                            return;
+                        }
+                        const fileExt = file.name.split('.').pop() || 'pdf';
+                        invoice_path = `${number}/${crypto.randomUUID()}.${fileExt}`;
+
+                        const { error: uploadErr } = await supabaseClient.storage.from('invoices').upload(invoice_path, file, {
+                            contentType: file.type,
+                            upsert: false
+                        });
+                        if (uploadErr) throw uploadErr;
+                    }
+
+                    const { error } = await supabaseClient.from('accounts').insert({
+                        firm_id, number, kind, status, purchased_at, cost, invoice_path,
+                        is_subscription, subscription_cost, renews_on,
+                        min_trade_required, min_trade_every_days, last_min_trade_on, notes
+                    });
+                    if (error) throw error;
+
+                    closeAccountModal();
+                    fetchAccountsData();
+                    fetchReminders();
+                } catch (err) {
+                    alert('Ошибка при сохранении счёта или загрузке инвойса: ' + err.message);
+                }
+            }
+        }
+
+        function openResetModal(accId) {
+            document.getElementById('resetAccountId').value = accId;
+            document.getElementById('resetDate').value = new Date().toISOString().slice(0, 10);
+            document.getElementById('resetModal').classList.remove('hidden');
+        }
+        function closeResetModal() { document.getElementById('resetModal').classList.add('hidden'); }
+
+        async function handleCreateReset(e) {
+            e.preventDefault();
+            const account_id = Number(document.getElementById('resetAccountId').value);
+            const reset_at = document.getElementById('resetDate').value;
+            const cost = Number(document.getElementById('resetCost').value);
+            const invoice_ref = document.getElementById('resetInvoiceRef').value.trim() || null;
+            const note = document.getElementById('resetNote').value.trim();
+
+            if (supabaseClient) {
+                const { error } = await supabaseClient.from('account_resets').insert({ account_id, reset_at, cost, invoice_ref, note });
+                if (error) { alert('Ошибка: ' + error.message); return; }
+                closeResetModal();
+                fetchAccountsData();
+            }
+        }
+
+        async function deleteAccount(accId) {
+            if (!confirm('Удалить этот счёт из системы?')) return;
+            if (supabaseClient) {
+                await supabaseClient.from('accounts').delete().eq('id', accId);
+                fetchAccountsData();
+                fetchReminders();
             }
         }
     </script>
