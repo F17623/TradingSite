@@ -22,7 +22,7 @@
     <style>
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #090d16; }
-        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }   
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #334155; }
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 1rem); }
         .pt-safe { padding-top: env(safe-area-inset-top, 1rem); }
@@ -1434,7 +1434,8 @@
                         </div>
                         <div class="relative inline-block">
                             <input type="text" data-group="${g.group_no}" placeholder="+ добавить тег..." 
-                               autocomplete="new-password"
+                                autocomplete="off"
+                                data-lpignore="true"
                                 class="tag-input bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 w-48">
                             
                             <div class="tag-dropdown hidden absolute left-0 mt-1 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-20 max-h-40 overflow-y-auto"></div>
