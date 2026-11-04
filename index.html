@@ -209,14 +209,14 @@
                 </div>
                 <div class="hidden md:block overflow-x-auto">
                     <table class="w-full text-left text-xs">
-                        <thead class="bg-slate-950/50 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                        <thead class="bg-slate-950/50 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800 select-none">
                             <tr>
-                                <th class="py-3 px-4">Сделка / Счет</th>
-                                <th class="py-3 px-4">Инструмент</th>
-                                <th class="py-3 px-4">Открыта</th>
-                                <th class="py-3 px-4">Статус (net_now)</th>
-                                <th class="py-3 px-4 text-right">Тики</th>
-                                <th class="py-3 px-4 text-right">Результат (cash)</th>
+                                <th class="py-3 px-4 cursor-pointer hover:text-white transition-colors" onclick="sortTrades('group_no')">Сделка / Счет ↕</th>
+                                <th class="py-3 px-4 cursor-pointer hover:text-white transition-colors" onclick="sortTrades('instrument')">Инструмент ↕</th>
+                                <th class="py-3 px-4 cursor-pointer hover:text-white transition-colors" onclick="sortTrades('opened_at')">Открыта ↕</th>
+                                <th class="py-3 px-4 cursor-pointer hover:text-white transition-colors" onclick="sortTrades('net_now')">Статус (net_now) ↕</th>
+                                <th class="py-3 px-4 text-right cursor-pointer hover:text-white transition-colors" onclick="sortTrades('ticks')">Тики ↕</th>
+                                <th class="py-3 px-4 text-right cursor-pointer hover:text-white transition-colors" onclick="sortTrades('cash')">Результат (cash) ↕</th>
                             </tr>
                         </thead>
                         <tbody id="tradesTableBody" class="divide-y divide-slate-800/60 font-medium"></tbody>
@@ -306,7 +306,7 @@
                         </div>
                         <div>
                             <h3 class="text-base font-bold text-white">Свободные снимки (Snapshot из NinjaTrader)</h3>
-                            <p class="text-xs text-slate-400">Снимки, сделанные вне активности сделок</p>
+                            <p class="text-xs text-slate-400">Снимки за последние 48 часов, сделанные вне активности сделок</p>
                         </div>
                     </div>
                     
@@ -548,6 +548,11 @@
         let cachedTags = [];
         let allFirms = [];
         let allAccountsOverview = [];
+
+        // Переменные для сортировки таблицы сделок
+        let currentTradesCache = [];
+        let currentSortField = 'opened_at';
+        let currentSortAsc = false;
 
         // Защита от гонки асинхронного рендера дня
         let currentRenderToken = 0;
@@ -847,7 +852,11 @@
                 const todayRows = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === today);
 
                 renderRiskStatus(riskData);
-                renderTrades(todayRows);
+                
+                // Кешируем сделки дня и рендерим с текущей сортировкой
+                currentTradesCache = todayRows;
+                sortTrades(currentSortField, true);
+
                 renderCalendarGridOnly();
                 populateFreeAssignDropdown();
 
@@ -947,6 +956,46 @@
                 desc.innerText = "Торговля остановлена контроллером.";
             }
             lucide.createIcons();
+        }
+
+        // --- СОРТИРОВКА ТАБЛИЦЫ СДЕЛОК ---
+        function sortTrades(field, keepDirection = false) {
+            if (!keepDirection) {
+                if (currentSortField === field) {
+                    currentSortAsc = !currentSortAsc;
+                } else {
+                    currentSortField = field;
+                    currentSortAsc = (field === 'instrument' || field === 'group_no');
+                }
+            }
+
+            currentTradesCache.sort((a, b) => {
+                let valA = a[field];
+                let valB = b[field];
+
+                if (field === 'net_now') {
+                    valA = Number(valA) === 0 ? 1 : 0;
+                    valB = Number(valB) === 0 ? 1 : 0;
+                } else if (field === 'cash' || field === 'ticks') {
+                    valA = valA !== null && valA !== undefined ? Number(valA) : -999999;
+                    valB = valB !== null && valB !== undefined ? Number(valB) : -999999;
+                } else if (field === 'opened_at') {
+                    valA = valA ? new Date(valA).getTime() : 0;
+                    valB = valB ? new Date(valB).getTime() : 0;
+                } else if (field === 'group_no') {
+                    valA = Number(valA || a.trade_no || 0);
+                    valB = Number(valB || b.trade_no || 0);
+                } else {
+                    valA = String(valA || '').toLowerCase();
+                    valB = String(valB || '').toLowerCase();
+                }
+
+                if (valA < valB) return currentSortAsc ? -1 : 1;
+                if (valA > valB) return currentSortAsc ? 1 : -1;
+                return 0;
+            });
+
+            renderTrades(currentTradesCache);
         }
 
         function renderTrades(trades) {
@@ -1284,7 +1333,6 @@
                 const cashClass = !isClosed ? 'text-slate-500' : (cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400'));
                 const cashStr = !isClosed ? '—' : (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
 
-                // Оотображение тиков в карточке журнала
                 const ticksVal = g.ticks !== null && g.ticks !== undefined ? Number(g.ticks) : null;
                 const ticksClass = !isClosed || ticksVal === null ? 'text-slate-500' : (ticksVal > 0 ? 'text-emerald-400' : (ticksVal < 0 ? 'text-rose-400' : 'text-slate-400'));
                 const ticksStr = !isClosed || ticksVal === null ? '—' : (ticksVal >= 0 ? `+${ticksVal} t` : `${ticksVal} t`);
@@ -1369,11 +1417,9 @@
                                 <div>${openTime}</div>
                                 <div class="text-[10px] text-slate-500">⏱ ${durationStr}</div>
                             </div>
-                            <!-- ТИКИ СЛЕВА ОТ cash -->
                             <div class="font-bold font-mono text-base ${ticksClass}">
                                 ${ticksStr}
                             </div>
-                            <!-- ФИНАНСОВЫЙ РЕЗУЛЬТАТ -->
                             <div class="font-bold font-mono text-lg ${cashClass} min-w-[90px]">
                                 ${cashStr}
                             </div>
@@ -1423,65 +1469,65 @@
             bindJournalEvents();
             lucide.createIcons();
         }
-async function fetchFreeSnapshots() {
-    if (!supabaseClient) return;
 
-    const container = document.getElementById('freeSnapshotsGrid');
-    const emptyState = document.getElementById('emptyFreeSnapshots');
+        async function fetchFreeSnapshots() {
+            if (!supabaseClient) return;
 
-    // === Берем снимки за последние 2 дня (48 часов назад) ===
-    const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+            const container = document.getElementById('freeSnapshotsGrid');
+            const emptyState = document.getElementById('emptyFreeSnapshots');
 
-    // === Запрос к базе ===
-    const { data } = await supabaseClient
-        .from('snapshots')
-        .select('id, storage_path, taken_at, note')
-        .is('group_no', null)
-        .gte('taken_at', twoDaysAgo) // всё, что новее 48 часов
-        .order('taken_at', { ascending: false })
-        .range(0, 47);
+            const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
-    populateFreeAssignDropdown();
+            const { data } = await supabaseClient
+                .from('snapshots')
+                .select('id, storage_path, taken_at, note')
+                .is('group_no', null)
+                .gte('taken_at', twoDaysAgo)
+                .order('taken_at', { ascending: false })
+                .range(0, 47);
 
-    if (!data || data.length === 0) {
-        container.innerHTML = '';
-        emptyState.classList.remove('hidden');
-        updateFreeSelectedCount();
-        return;
-    }
-    emptyState.classList.add('hidden');
+            populateFreeAssignDropdown();
 
-    const paths = data.map(s => s.storage_path).filter(Boolean);
-    const { data: signedData } = await supabaseClient.storage.from('shots').createSignedUrls(paths, 3600);
-    
-    const signedMap = {};
-    if (signedData) {
-        signedData.forEach(item => { if (item.path && item.signedUrl) signedMap[item.path] = item.signedUrl; });
-    }
+            if (!data || data.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                updateFreeSelectedCount();
+                return;
+            }
+            emptyState.classList.add('hidden');
 
-    container.innerHTML = data.map(s => {
-        const url = signedMap[s.storage_path] || '';
-        const dateStr = s.taken_at ? new Date(s.taken_at).toLocaleString() : '—';
-        return `
-            <div class="relative bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between group hover:border-indigo-500/50 transition-all">
-                <label class="absolute top-2.5 left-2.5 z-10 cursor-pointer flex items-center justify-center bg-slate-900/90 p-1.5 rounded-lg border border-slate-700 shadow-md">
-                    <input type="checkbox" value="${s.id}" class="free-shot-checkbox w-4 h-4 text-indigo-600 rounded bg-slate-950 border-slate-700 focus:ring-0 cursor-pointer" onchange="updateFreeSelectedCount()">
-                </label>
-                <div class="p-2 pl-10 border-b border-slate-800 flex items-center justify-between text-[10px] text-slate-400 bg-slate-900/50">
-                    <span class="font-mono">${dateStr}</span>
-                    ${url ? `<a href="${url}" target="_blank" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>` : ''}
-                </div>
-                <div class="p-2 flex justify-center bg-slate-950 aspect-video">
-                    ${url ? `<img src="${url}" loading="lazy" class="w-full h-full object-contain rounded-lg">` : '<span class="text-xs text-slate-500">Загрузка...</span>'}
-                </div>
-                ${s.note ? `<div class="p-2 border-t border-slate-800 text-xs text-slate-300">${esc(s.note)}</div>` : ''}
-            </div>
-        `;
-    }).join('');
+            const paths = data.map(s => s.storage_path).filter(Boolean);
+            const { data: signedData } = await supabaseClient.storage.from('shots').createSignedUrls(paths, 3600);
+            
+            const signedMap = {};
+            if (signedData) {
+                signedData.forEach(item => { if (item.path && item.signedUrl) signedMap[item.path] = item.signedUrl; });
+            }
 
-    updateFreeSelectedCount();
-    lucide.createIcons();
-}
+            container.innerHTML = data.map(s => {
+                const url = signedMap[s.storage_path] || '';
+                const dateStr = s.taken_at ? new Date(s.taken_at).toLocaleString() : '—';
+                return `
+                    <div class="relative bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between group hover:border-indigo-500/50 transition-all">
+                        <label class="absolute top-2.5 left-2.5 z-10 cursor-pointer flex items-center justify-center bg-slate-900/90 p-1.5 rounded-lg border border-slate-700 shadow-md">
+                            <input type="checkbox" value="${s.id}" class="free-shot-checkbox w-4 h-4 text-indigo-600 rounded bg-slate-950 border-slate-700 focus:ring-0 cursor-pointer" onchange="updateFreeSelectedCount()">
+                        </label>
+                        <div class="p-2 pl-10 border-b border-slate-800 flex items-center justify-between text-[10px] text-slate-400 bg-slate-900/50">
+                            <span class="font-mono">${dateStr}</span>
+                            ${url ? `<a href="${url}" target="_blank" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>` : ''}
+                        </div>
+                        <div class="p-2 flex justify-center bg-slate-950 aspect-video">
+                            ${url ? `<img src="${url}" loading="lazy" class="w-full h-full object-contain rounded-lg">` : '<span class="text-xs text-slate-500">Загрузка...</span>'}
+                        </div>
+                        ${s.note ? `<div class="p-2 border-t border-slate-800 text-xs text-slate-300">${esc(s.note)}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            updateFreeSelectedCount();
+            lucide.createIcons();
+        }
+
         function populateFreeAssignDropdown() {
             const select = document.getElementById('freeTargetGroupSelect');
             if (!select) return;
