@@ -1423,61 +1423,65 @@
             bindJournalEvents();
             lucide.createIcons();
         }
+async function fetchFreeSnapshots() {
+    if (!supabaseClient) return;
 
-        async function fetchFreeSnapshots() {
-            if (!supabaseClient) return;
-            const container = document.getElementById('freeSnapshotsGrid');
-            const emptyState = document.getElementById('emptyFreeSnapshots');
+    const container = document.getElementById('freeSnapshotsGrid');
+    const emptyState = document.getElementById('emptyFreeSnapshots');
 
-            const { data } = await supabaseClient
-                .from('snapshots')
-                .select('id, storage_path, taken_at, note')
-                .is('group_no', null)
-                .order('taken_at', { ascending: false })
-                .range(0, 23);
+    // === Берем снимки за последние 2 дня (48 часов назад) ===
+    const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
 
-            populateFreeAssignDropdown();
+    // === Запрос к базе ===
+    const { data } = await supabaseClient
+        .from('snapshots')
+        .select('id, storage_path, taken_at, note')
+        .is('group_no', null)
+        .gte('taken_at', twoDaysAgo) // всё, что новее 48 часов
+        .order('taken_at', { ascending: false })
+        .range(0, 47);
 
-            if (!data || data.length === 0) {
-                container.innerHTML = '';
-                emptyState.classList.remove('hidden');
-                updateFreeSelectedCount();
-                return;
-            }
-            emptyState.classList.add('hidden');
+    populateFreeAssignDropdown();
 
-            const paths = data.map(s => s.storage_path).filter(Boolean);
-            const { data: signedData } = await supabaseClient.storage.from('shots').createSignedUrls(paths, 3600);
-            
-            const signedMap = {};
-            if (signedData) {
-                signedData.forEach(item => { if (item.path && item.signedUrl) signedMap[item.path] = item.signedUrl; });
-            }
+    if (!data || data.length === 0) {
+        container.innerHTML = '';
+        emptyState.classList.remove('hidden');
+        updateFreeSelectedCount();
+        return;
+    }
+    emptyState.classList.add('hidden');
 
-            container.innerHTML = data.map(s => {
-                const url = signedMap[s.storage_path] || '';
-                const dateStr = s.taken_at ? new Date(s.taken_at).toLocaleString() : '—';
-                return `
-                    <div class="relative bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between group hover:border-indigo-500/50 transition-all">
-                        <label class="absolute top-2.5 left-2.5 z-10 cursor-pointer flex items-center justify-center bg-slate-900/90 p-1.5 rounded-lg border border-slate-700 shadow-md">
-                            <input type="checkbox" value="${s.id}" class="free-shot-checkbox w-4 h-4 text-indigo-600 rounded bg-slate-950 border-slate-700 focus:ring-0 cursor-pointer" onchange="updateFreeSelectedCount()">
-                        </label>
-                        <div class="p-2 pl-10 border-b border-slate-800 flex items-center justify-between text-[10px] text-slate-400 bg-slate-900/50">
-                            <span class="font-mono">${dateStr}</span>
-                            ${url ? `<a href="${url}" target="_blank" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>` : ''}
-                        </div>
-                        <div class="p-2 flex justify-center bg-slate-950 aspect-video">
-                            ${url ? `<img src="${url}" loading="lazy" class="w-full h-full object-contain rounded-lg">` : '<span class="text-xs text-slate-500">Загрузка...</span>'}
-                        </div>
-                        ${s.note ? `<div class="p-2 border-t border-slate-800 text-xs text-slate-300">${esc(s.note)}</div>` : ''}
-                    </div>
-                `;
-            }).join('');
+    const paths = data.map(s => s.storage_path).filter(Boolean);
+    const { data: signedData } = await supabaseClient.storage.from('shots').createSignedUrls(paths, 3600);
+    
+    const signedMap = {};
+    if (signedData) {
+        signedData.forEach(item => { if (item.path && item.signedUrl) signedMap[item.path] = item.signedUrl; });
+    }
 
-            updateFreeSelectedCount();
-            lucide.createIcons();
-        }
+    container.innerHTML = data.map(s => {
+        const url = signedMap[s.storage_path] || '';
+        const dateStr = s.taken_at ? new Date(s.taken_at).toLocaleString() : '—';
+        return `
+            <div class="relative bg-slate-950 border border-slate-800 rounded-xl overflow-hidden flex flex-col justify-between group hover:border-indigo-500/50 transition-all">
+                <label class="absolute top-2.5 left-2.5 z-10 cursor-pointer flex items-center justify-center bg-slate-900/90 p-1.5 rounded-lg border border-slate-700 shadow-md">
+                    <input type="checkbox" value="${s.id}" class="free-shot-checkbox w-4 h-4 text-indigo-600 rounded bg-slate-950 border-slate-700 focus:ring-0 cursor-pointer" onchange="updateFreeSelectedCount()">
+                </label>
+                <div class="p-2 pl-10 border-b border-slate-800 flex items-center justify-between text-[10px] text-slate-400 bg-slate-900/50">
+                    <span class="font-mono">${dateStr}</span>
+                    ${url ? `<a href="${url}" target="_blank" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>` : ''}
+                </div>
+                <div class="p-2 flex justify-center bg-slate-950 aspect-video">
+                    ${url ? `<img src="${url}" loading="lazy" class="w-full h-full object-contain rounded-lg">` : '<span class="text-xs text-slate-500">Загрузка...</span>'}
+                </div>
+                ${s.note ? `<div class="p-2 border-t border-slate-800 text-xs text-slate-300">${esc(s.note)}</div>` : ''}
+            </div>
+        `;
+    }).join('');
 
+    updateFreeSelectedCount();
+    lucide.createIcons();
+}
         function populateFreeAssignDropdown() {
             const select = document.getElementById('freeTargetGroupSelect');
             if (!select) return;
