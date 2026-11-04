@@ -1,47 +1,52 @@
-create view public.trade_summary
-with
-  (security_invoker = on) as
+create or replace view public.trade_summary
+with (security_invoker = on) as
 select
   trade_no,
   group_no,
   account_name,
   instrument,
+
+  -- направление
   case
-    when (
-      array_agg(
-        side
-        order by
-          id
-      )
-    ) [1] > 0 then 'LONG'::text
+    when (array_agg(side order by id))[1] > 0 then 'LONG'::text
     else 'SHORT'::text
   end as direction,
+
   min(created_at) as opened_at,
+
   case
-    when (
-      array_agg(
-        net_after
-        order by
-          id desc
-      )
-    ) [1] = 0 then max(created_at)
-    else null::timestamp with time zone
+    when (array_agg(net_after order by id desc))[1] = 0 then max(created_at)
+    else null::timestamptz
   end as closed_at,
-  (
-    array_agg(
-      net_after
-      order by
-        id desc
-    )
-  ) [1] as net_now,
+
+  (array_agg(net_after order by id desc))[1] as net_now,
   max(abs(net_after)) as max_qty,
+
+  -- уже существующий cash
   sum(
-    ((- side) * qty)::numeric * price * point_value - COALESCE(commission, 0::numeric)
-  ) as cash
-from
-  trades
-where
-  trade_no is not null
+    ((-side) * qty)::numeric * price * point_value 
+    - coalesce(commission, 0::numeric)
+  ) as cash,
+
+  -- ===== ТИКИ =====
+  case
+    when (array_agg(net_after order by id desc))[1] = 0 then
+      round(
+        (
+          -- средняя цена продаж
+          (sum(case when side < 0 then qty * price else 0 end) 
+           / nullif(sum(case when side < 0 then qty else 0 end), 0))
+          -
+          -- средняя цена покупок
+          (sum(case when side > 0 then qty * price else 0 end) 
+           / nullif(sum(case when side > 0 then qty else 0 end), 0))
+        ) / 0.25
+      , 1)   -- можно убрать round или поставить 0/2 знака
+    else null
+  end as ticks
+
+from trades
+where trade_no is not null
 group by
   trade_no,
   group_no,

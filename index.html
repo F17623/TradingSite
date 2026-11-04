@@ -215,6 +215,7 @@
                                 <th class="py-3 px-4">Инструмент</th>
                                 <th class="py-3 px-4">Открыта</th>
                                 <th class="py-3 px-4">Статус (net_now)</th>
+                                <th class="py-3 px-4 text-right">Тики</th>
                                 <th class="py-3 px-4 text-right">Результат (cash)</th>
                             </tr>
                         </thead>
@@ -965,8 +966,15 @@
                 const cash = Number(t.cash || 0);
                 const isClosed = Number(t.net_now) === 0;
                 if (isClosed) { totalPnL += cash; closedCount++; if (cash > 0) winCount++; } else { activeCount++; }
+                
                 const cashClass = !isClosed ? 'text-slate-500' : (cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400'));
                 const cashFormatted = !isClosed ? '—' : (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
+                
+                // РАСЧЕТ ТИКОВ
+                const ticksVal = t.ticks !== null && t.ticks !== undefined ? Number(t.ticks) : null;
+                const ticksClass = !isClosed || ticksVal === null ? 'text-slate-500' : (ticksVal > 0 ? 'text-emerald-400' : (ticksVal < 0 ? 'text-rose-400' : 'text-slate-400'));
+                const ticksFormatted = !isClosed || ticksVal === null ? '—' : (ticksVal >= 0 ? `+${ticksVal} t` : `${ticksVal} t`);
+
                 const openTime = t.opened_at ? new Date(t.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
 
                 const tr = document.createElement('tr');
@@ -976,6 +984,7 @@
                     <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-slate-800 font-mono text-[11px]">${esc(t.instrument || 'NQ')}</span></td>
                     <td class="py-3 px-4 text-slate-400">${openTime}</td>
                     <td class="py-3 px-4">${isClosed ? 'Закрыта' : '<span class="text-indigo-400 font-bold">Открыта</span>'}</td>
+                    <td class="py-3 px-4 text-right font-bold font-mono ${ticksClass}">${ticksFormatted}</td>
                     <td class="py-3 px-4 text-right font-bold font-mono ${cashClass}">${cashFormatted}</td>
                 `;
                 tbody.appendChild(tr);
@@ -1168,11 +1177,13 @@
                         closed_at: t.closed_at,
                         net_now: t.net_now,
                         cash: 0,
+                        ticks: t.ticks,
                         rows: []
                     };
                 }
                 groupsMap[t.group_no].rows.push(t);
                 groupsMap[t.group_no].cash += Number(t.cash || 0);
+                if (t.ticks !== undefined && t.ticks !== null) groupsMap[t.group_no].ticks = t.ticks;
                 if (Number(t.net_now) !== 0) groupsMap[t.group_no].net_now = t.net_now;
                 if (t.closed_at && (!groupsMap[t.group_no].closed_at || new Date(t.closed_at) > new Date(groupsMap[t.group_no].closed_at))) {
                     groupsMap[t.group_no].closed_at = t.closed_at;
@@ -1273,6 +1284,11 @@
                 const cashClass = !isClosed ? 'text-slate-500' : (cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400'));
                 const cashStr = !isClosed ? '—' : (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
 
+                // Оотображение тиков в карточке журнала
+                const ticksVal = g.ticks !== null && g.ticks !== undefined ? Number(g.ticks) : null;
+                const ticksClass = !isClosed || ticksVal === null ? 'text-slate-500' : (ticksVal > 0 ? 'text-emerald-400' : (ticksVal < 0 ? 'text-rose-400' : 'text-slate-400'));
+                const ticksStr = !isClosed || ticksVal === null ? '—' : (ticksVal >= 0 ? `+${ticksVal} t` : `${ticksVal} t`);
+
                 const cardDiv = document.createElement('div');
                 cardDiv.className = "bg-slate-950/50 border border-slate-800 rounded-2xl p-4 space-y-3";
                 
@@ -1353,6 +1369,11 @@
                                 <div>${openTime}</div>
                                 <div class="text-[10px] text-slate-500">⏱ ${durationStr}</div>
                             </div>
+                            <!-- ТИКИ СЛЕВА ОТ cash -->
+                            <div class="font-bold font-mono text-base ${ticksClass}">
+                                ${ticksStr}
+                            </div>
+                            <!-- ФИНАНСОВЫЙ РЕЗУЛЬТАТ -->
                             <div class="font-bold font-mono text-lg ${cashClass} min-w-[90px]">
                                 ${cashStr}
                             </div>
