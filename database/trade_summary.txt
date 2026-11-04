@@ -6,26 +6,40 @@ select
   group_no,
   account_name,
   instrument,
-  min(created_at) as opened_at,
-  max(created_at) as last_at,
-  max(net_after) filter (
-    where
-      id = (
-        (
-          select
-            max(t2.id) as max
-          from
-            trades t2
-          where
-            t2.trade_no = t.trade_no
-        )
+  case
+    when (
+      array_agg(
+        side
+        order by
+          id
       )
-  ) as net_now,
+    ) [1] > 0 then 'LONG'::text
+    else 'SHORT'::text
+  end as direction,
+  min(created_at) as opened_at,
+  case
+    when (
+      array_agg(
+        net_after
+        order by
+          id desc
+      )
+    ) [1] = 0 then max(created_at)
+    else null::timestamp with time zone
+  end as closed_at,
+  (
+    array_agg(
+      net_after
+      order by
+        id desc
+    )
+  ) [1] as net_now,
+  max(abs(net_after)) as max_qty,
   sum(
     ((- side) * qty)::numeric * price * point_value - COALESCE(commission, 0::numeric)
   ) as cash
 from
-  trades t
+  trades
 where
   trade_no is not null
 group by
