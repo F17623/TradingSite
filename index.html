@@ -1190,293 +1190,286 @@
             document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
-  async function loadAndRenderDayJournal(titleText, trades, savedScrollY = null) {
-    const thisToken = ++currentRenderToken;
+        async function loadAndRenderDayJournal(titleText, trades) {
+            const thisToken = ++currentRenderToken;
 
-    const titleEl = document.getElementById('selectedDayTitle');
-    const container = document.getElementById('dayTradesContainer');
-    const emptyState = document.getElementById('emptyDayTrades');
+            const titleEl = document.getElementById('selectedDayTitle');
+            const container = document.getElementById('dayTradesContainer');
+            const emptyState = document.getElementById('emptyDayTrades');
 
-    if (titleEl) titleEl.innerText = titleText;
+            if (titleEl) titleEl.innerText = titleText;
 
-    let dayPnL = 0;
-    if (trades) {
-        trades.forEach(t => {
-            if (Number(t.net_now) === 0) dayPnL += Number(t.cash || 0);
-        });
-    }
-    renderHeaderControls(dayPnL);
-
-    if (!trades || trades.length === 0) {
-        container.innerHTML = '';
-        emptyState.classList.remove('hidden');
-        if (savedScrollY !== null) {
-            window.scrollTo(0, savedScrollY);
-        }
-        return;
-    }
-    emptyState.classList.add('hidden');
-
-    const groupsMap = {};
-    trades.forEach(t => {
-        if (!t.group_no) return;
-        if (!groupsMap[t.group_no]) {
-            groupsMap[t.group_no] = {
-                group_no: t.group_no,
-                instrument: t.instrument,
-                direction: t.direction,
-                opened_at: t.opened_at,
-                closed_at: t.closed_at,
-                net_now: t.net_now,
-                cash: 0,
-                ticks: t.ticks,
-                rows: []
-            };
-        }
-        groupsMap[t.group_no].rows.push(t);
-        groupsMap[t.group_no].cash += Number(t.cash || 0);
-        if (t.ticks !== undefined && t.ticks !== null) groupsMap[t.group_no].ticks = t.ticks;
-        if (Number(t.net_now) !== 0) groupsMap[t.group_no].net_now = t.net_now;
-        if (t.closed_at && (!groupsMap[t.group_no].closed_at || new Date(t.closed_at) > new Date(groupsMap[t.group_no].closed_at))) {
-            groupsMap[t.group_no].closed_at = t.closed_at;
-        }
-    });
-
-    const groupKeys = Object.keys(groupsMap);
-    let shotsDBData = {};
-    let tagsDBData = {};
-    let notesDBData = {};
-
-    if (supabaseClient && groupKeys.length > 0) {
-        const numericGroupKeys = groupKeys.map(Number);
-
-        const [jRes, tsRes, snapRes] = await Promise.all([
-            supabaseClient.from('trade_journal').select('group_no, note, trade_tags(tags(id, name))').in('group_no', numericGroupKeys),
-            supabaseClient.from('trade_shots').select('id, group_no, storage_path, kind, taken_at').in('group_no', numericGroupKeys),
-            supabaseClient.from('snapshots').select('id, group_no, storage_path, taken_at, note').in('group_no', numericGroupKeys)
-        ]);
-
-        if (thisToken !== currentRenderToken) return;
-
-        if (jRes.data) {
-            jRes.data.forEach(j => {
-                tagsDBData[j.group_no] = j.trade_tags ? j.trade_tags.map(tt => tt.tags) : [];
-                notesDBData[j.group_no] = j.note || '';
-            });
-        }
-
-        numericGroupKeys.forEach(gNo => {
-            const groupShots = (tsRes.data || []).filter(s => Number(s.group_no) === gNo);
-            const groupSnaps = (snapRes.data || []).filter(s => Number(s.group_no) === gNo).map(s => ({
-                id: s.id,
-                group_no: s.group_no,
-                storage_path: s.storage_path,
-                kind: 'manual',
-                taken_at: s.taken_at,
-                is_snapshot_table: true
-            }));
-
-            const combined = [...groupShots, ...groupSnaps].sort((a, b) => {
-                const order = { 'open': 1, 'manual': 2, 'other': 2, 'after': 3 };
-                const orderA = order[a.kind] || 4;
-                const orderB = order[b.kind] || 4;
-                if (orderA !== orderB) return orderA - orderB;
-                return new Date(a.taken_at || 0) - new Date(b.taken_at || 0);
-            });
-
-            shotsDBData[gNo] = combined;
-        });
-    }
-
-    if (thisToken !== currentRenderToken) return;
-
-    const allPaths = [];
-    Object.values(shotsDBData).forEach(arr => {
-        arr.forEach(s => { if (s.storage_path) allPaths.push(s.storage_path); });
-    });
-
-    const signedUrlsMap = {};
-    if (showSnapshots && allPaths.length > 0 && supabaseClient) {
-        const { data: signedData } = await supabaseClient.storage.from('shots').createSignedUrls(allPaths, 3600);
-        if (signedData) {
-            signedData.forEach(item => {
-                if (item.path && item.signedUrl) signedUrlsMap[item.path] = item.signedUrl;
-            });
-        }
-    }
-
-    if (thisToken !== currentRenderToken) return;
-
-    container.innerHTML = '';
-
-    for (const gKey of groupKeys) {
-        const g = groupsMap[gKey];
-        const cash = g.cash;
-        const isClosed = Number(g.net_now) === 0;
-        const openTime = g.opened_at ? new Date(g.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
-
-        let durationStr = '—';
-        if (g.opened_at && g.closed_at) {
-            const diffMs = new Date(g.closed_at) - new Date(g.opened_at);
-            if (diffMs > 0) {
-                const totalSec = Math.floor(diffMs / 1000);
-                const mins = Math.floor(totalSec / 60);
-                const secs = totalSec % 60;
-                durationStr = mins > 0 ? `${mins} мин ${secs} сек` : `${secs} сек`;
+            let dayPnL = 0;
+            if (trades) {
+                trades.forEach(t => {
+                    if (Number(t.net_now) === 0) dayPnL += Number(t.cash || 0);
+                });
             }
-        } else if (!isClosed) {
-            durationStr = '<span class="text-indigo-400 font-bold">Активна</span>';
-        }
+            renderHeaderControls(dayPnL);
 
-        const isLong = String(g.direction || '').toUpperCase() === 'LONG' || Number(g.rows[0]?.side) > 0;
-        const dirBadge = isLong 
-            ? `<span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold font-mono">LONG ▲</span>`
-            : `<span class="px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold font-mono">SHORT ▼</span>`;
+            if (!trades || trades.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
 
-        const cashClass = !isClosed ? 'text-slate-500' : (cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400'));
-        const cashStr = !isClosed ? '—' : (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
+            const groupsMap = {};
+            trades.forEach(t => {
+                if (!t.group_no) return;
+                if (!groupsMap[t.group_no]) {
+                    groupsMap[t.group_no] = {
+                        group_no: t.group_no,
+                        instrument: t.instrument,
+                        direction: t.direction,
+                        opened_at: t.opened_at,
+                        closed_at: t.closed_at,
+                        net_now: t.net_now,
+                        cash: 0,
+                        ticks: t.ticks,
+                        rows: []
+                    };
+                }
+                groupsMap[t.group_no].rows.push(t);
+                groupsMap[t.group_no].cash += Number(t.cash || 0);
+                if (t.ticks !== undefined && t.ticks !== null) groupsMap[t.group_no].ticks = t.ticks;
+                if (Number(t.net_now) !== 0) groupsMap[t.group_no].net_now = t.net_now;
+                if (t.closed_at && (!groupsMap[t.group_no].closed_at || new Date(t.closed_at) > new Date(groupsMap[t.group_no].closed_at))) {
+                    groupsMap[t.group_no].closed_at = t.closed_at;
+                }
+            });
 
-        const ticksVal = g.ticks !== null && g.ticks !== undefined ? Number(g.ticks) : null;
-        const ticksClass = !isClosed || ticksVal === null ? 'text-slate-500' : (ticksVal > 0 ? 'text-emerald-400' : (ticksVal < 0 ? 'text-rose-400' : 'text-slate-400'));
-        const ticksStr = !isClosed || ticksVal === null ? '—' : (ticksVal >= 0 ? `+${ticksVal} t` : `${ticksVal} t`);
+            const groupKeys = Object.keys(groupsMap);
+            let shotsDBData = {};
+            let tagsDBData = {};
+            let notesDBData = {};
 
-        const cardDiv = document.createElement('div');
-        cardDiv.className = "bg-slate-950/50 border border-slate-800 rounded-2xl p-4 space-y-3";
-        
-        let tagsHtml = '';
-        const currentTags = tagsDBData[g.group_no] || [];
-        currentTags.forEach(tag => {
-            tagsHtml += `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-mono">
-                ${esc(tag.name)} <button type="button" data-group="${g.group_no}" data-tagid="${tag.id}" class="remove-tag-btn hover:text-white">&times;</button>
-            </span>`;
-        });
+            if (supabaseClient && groupKeys.length > 0) {
+                const numericGroupKeys = groupKeys.map(Number);
 
-        let snapshotHtml = '';
-        if (showSnapshots) {
-            const shots = shotsDBData[g.group_no] || [];
-            
-            let imagesListHtml = '';
-            if (shots.length > 0) {
-                imagesListHtml = `<div class="space-y-3 mb-3">`;
-                for (const shot of shots) {
-                    const signedUrl = signedUrlsMap[shot.storage_path] || '';
-                    const kindTitle = shot.kind === 'open' ? 'Вход (open)' : (shot.kind === 'after' ? 'После закрытия (after)' : (shot.kind === 'manual' ? 'Ручной (manual)' : 'Другое (other)'));
+                const [jRes, tsRes, snapRes] = await Promise.all([
+                    supabaseClient.from('trade_journal').select('group_no, note, trade_tags(tags(id, name))').in('group_no', numericGroupKeys),
+                    supabaseClient.from('trade_shots').select('id, group_no, storage_path, kind, taken_at').in('group_no', numericGroupKeys),
+                    supabaseClient.from('snapshots').select('id, group_no, storage_path, taken_at, note').in('group_no', numericGroupKeys)
+                ]);
+
+                if (thisToken !== currentRenderToken) return;
+
+                if (jRes.data) {
+                    jRes.data.forEach(j => {
+                        tagsDBData[j.group_no] = j.trade_tags ? j.trade_tags.map(tt => tt.tags) : [];
+                        notesDBData[j.group_no] = j.note || '';
+                    });
+                }
+
+                numericGroupKeys.forEach(gNo => {
+                    const groupShots = (tsRes.data || []).filter(s => Number(s.group_no) === gNo);
+                    const groupSnaps = (snapRes.data || []).filter(s => Number(s.group_no) === gNo).map(s => ({
+                        id: s.id,
+                        group_no: s.group_no,
+                        storage_path: s.storage_path,
+                        kind: 'manual',
+                        taken_at: s.taken_at,
+                        is_snapshot_table: true
+                    }));
+
+                    const combined = [...groupShots, ...groupSnaps].sort((a, b) => {
+                        const order = { 'open': 1, 'manual': 2, 'other': 2, 'after': 3 };
+                        const orderA = order[a.kind] || 4;
+                        const orderB = order[b.kind] || 4;
+                        if (orderA !== orderB) return orderA - orderB;
+                        return new Date(a.taken_at || 0) - new Date(b.taken_at || 0);
+                    });
+
+                    shotsDBData[gNo] = combined;
+                });
+            }
+
+            if (thisToken !== currentRenderToken) return;
+
+            const allPaths = [];
+            Object.values(shotsDBData).forEach(arr => {
+                arr.forEach(s => { if (s.storage_path) allPaths.push(s.storage_path); });
+            });
+
+            const signedUrlsMap = {};
+            if (showSnapshots && allPaths.length > 0 && supabaseClient) {
+                const { data: signedData } = await supabaseClient.storage.from('shots').createSignedUrls(allPaths, 3600);
+                if (signedData) {
+                    signedData.forEach(item => {
+                        if (item.path && item.signedUrl) signedUrlsMap[item.path] = item.signedUrl;
+                    });
+                }
+            }
+
+            if (thisToken !== currentRenderToken) return;
+
+            container.innerHTML = '';
+
+            for (const gKey of groupKeys) {
+                const g = groupsMap[gKey];
+                const cash = g.cash;
+                const isClosed = Number(g.net_now) === 0;
+                const openTime = g.opened_at ? new Date(g.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+
+                let durationStr = '—';
+                if (g.opened_at && g.closed_at) {
+                    const diffMs = new Date(g.closed_at) - new Date(g.opened_at);
+                    if (diffMs > 0) {
+                        const totalSec = Math.floor(diffMs / 1000);
+                        const mins = Math.floor(totalSec / 60);
+                        const secs = totalSec % 60;
+                        durationStr = mins > 0 ? `${mins} мин ${secs} сек` : `${secs} сек`;
+                    }
+                } else if (!isClosed) {
+                    durationStr = '<span class="text-indigo-400 font-bold">Активна</span>';
+                }
+
+                const isLong = String(g.direction || '').toUpperCase() === 'LONG' || Number(g.rows[0]?.side) > 0;
+                const dirBadge = isLong 
+                    ? `<span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold font-mono">LONG ▲</span>`
+                    : `<span class="px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-bold font-mono">SHORT ▼</span>`;
+
+                const cashClass = !isClosed ? 'text-slate-500' : (cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400'));
+                const cashStr = !isClosed ? '—' : (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
+
+                const ticksVal = g.ticks !== null && g.ticks !== undefined ? Number(g.ticks) : null;
+                const ticksClass = !isClosed || ticksVal === null ? 'text-slate-500' : (ticksVal > 0 ? 'text-emerald-400' : (ticksVal < 0 ? 'text-rose-400' : 'text-slate-400'));
+                const ticksStr = !isClosed || ticksVal === null ? '—' : (ticksVal >= 0 ? `+${ticksVal} t` : `${ticksVal} t`);
+
+                const cardDiv = document.createElement('div');
+                cardDiv.className = "bg-slate-950/50 border border-slate-800 rounded-2xl p-4 space-y-3";
+                
+                let tagsHtml = '';
+                const currentTags = tagsDBData[g.group_no] || [];
+                currentTags.forEach(tag => {
+                    tagsHtml += `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-mono">
+                        ${esc(tag.name)} <button type="button" data-group="${g.group_no}" data-tagid="${tag.id}" class="remove-tag-btn hover:text-white">&times;</button>
+                    </span>`;
+                });
+
+                let snapshotHtml = '';
+                if (showSnapshots) {
+                    const shots = shotsDBData[g.group_no] || [];
                     
-                    imagesListHtml += `
-                        <div class="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
-                            <div class="bg-slate-900/90 px-3 py-1.5 text-[10px] text-slate-400 flex items-center justify-between border-b border-slate-800">
-                                <span class="font-semibold text-slate-300">График: ${kindTitle}</span>
-                                <div class="flex items-center gap-2">
-                                    ${signedUrl ? `<a href="${signedUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>` : ''}
-                                    <button type="button" data-shotid="${shot.id}" data-path="${esc(shot.storage_path)}" data-issnap="${shot.is_snapshot_table ? '1' : '0'}" data-group="${g.group_no}" class="delete-shot-btn text-rose-400 hover:text-rose-300">Удалить</button>
+                    let imagesListHtml = '';
+                    if (shots.length > 0) {
+                        imagesListHtml = `<div class="space-y-3 mb-3">`;
+                        for (const shot of shots) {
+                            const signedUrl = signedUrlsMap[shot.storage_path] || '';
+                            const kindTitle = shot.kind === 'open' ? 'Вход (open)' : (shot.kind === 'after' ? 'После закрытия (after)' : (shot.kind === 'manual' ? 'Ручной (manual)' : 'Другое (other)'));
+                            
+                            imagesListHtml += `
+                                <div class="relative rounded-xl overflow-hidden border border-slate-800 bg-slate-950">
+                                    <div class="bg-slate-900/90 px-3 py-1.5 text-[10px] text-slate-400 flex items-center justify-between border-b border-slate-800">
+                                        <span class="font-semibold text-slate-300">График: ${kindTitle}</span>
+                                        <div class="flex items-center gap-2">
+                                            ${signedUrl ? `<a href="${signedUrl}" target="_blank" rel="noopener noreferrer" class="text-indigo-400 hover:text-indigo-300">Открыть &#8599;</a>` : ''}
+                                            <button type="button" data-shotid="${shot.id}" data-path="${esc(shot.storage_path)}" data-issnap="${shot.is_snapshot_table ? '1' : '0'}" data-group="${g.group_no}" class="delete-shot-btn text-rose-400 hover:text-rose-300">Удалить</button>
+                                        </div>
+                                    </div>
+                                    <div class="p-2 flex justify-center bg-slate-950">
+                                        ${signedUrl ? `<img src="${signedUrl}" loading="lazy" alt="Скриншот графика" class="w-full h-auto object-contain rounded-lg">` : '<div class="p-4 text-xs text-slate-500">Загрузка изображения...</div>'}
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="p-2 flex justify-center bg-slate-950">
-                                ${signedUrl ? `<img src="${signedUrl}" loading="lazy" alt="Скриншот графика" class="w-full h-auto object-contain rounded-lg">` : '<div class="p-4 text-xs text-slate-500">Загрузка изображения...</div>'}
+                            `;
+                        }
+                        imagesListHtml += `</div>`;
+                    }
+
+                    snapshotHtml = `
+                        <div class="space-y-3 mt-3">
+                            ${imagesListHtml}
+                            <div class="p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-500 space-y-3">
+                                <div class="flex items-center justify-center gap-2">
+                                    <i data-lucide="camera" class="w-4 h-4 opacity-40"></i>
+                                    <span>Загрузить график в сделку:</span>
+                                </div>
+                                <div class="flex flex-wrap items-center justify-center gap-2">
+                                    <select id="uploadKind_${g.group_no}" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 font-mono">
+                                        <option value="open">Вход (open)</option>
+                                        <option value="manual" selected>Ручной (manual)</option>
+                                        <option value="after">После закрытия (after)</option>
+                                        <option value="other">Другое (other)</option>
+                                    </select>
+                                    <input type="file" accept="image/png, image/jpeg, image/webp" data-group="${g.group_no}" class="shot-file-input text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer bg-slate-950 border border-slate-800 rounded-lg">
+                                </div>
                             </div>
                         </div>
                     `;
                 }
-                imagesListHtml += `</div>`;
+
+                let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.max_qty ? r.net_now : r.max_qty} контр.)`).join(', ');
+                const currentNote = notesDBData[g.group_no] || '';
+
+                cardDiv.innerHTML = `
+                    <div class="flex items-center justify-between border-b border-slate-800/60 pb-3">
+                        <div class="flex items-center space-x-3">
+                            <span class="px-2.5 py-1 rounded-lg bg-slate-800 font-mono font-bold text-white text-xs">#${g.group_no}</span>
+                            ${dirBadge}
+                            <div>
+                                <span class="font-bold text-white text-xs">${esc(g.instrument || 'NQ')}</span>
+                                <span class="text-xs text-slate-300 font-medium ml-2 font-mono">Счета: ${accountsListStr}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-4 text-right">
+                            <div class="hidden sm:block text-xs font-mono text-slate-400">
+                                <div>${openTime}</div>
+                                <div class="text-[10px] text-slate-500">⏱ ${durationStr}</div>
+                            </div>
+                            <div class="font-bold font-mono text-base ${ticksClass}">
+                                ${ticksStr}
+                            </div>
+                            <div class="font-bold font-mono text-lg ${cashClass} min-w-[90px]">
+                                ${cashStr}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ТЕГИ -->
+                    <div class="flex flex-wrap items-center gap-2 pt-1">
+                        <span class="text-[11px] font-semibold text-slate-400 uppercase">Теги:</span>
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            ${tagsHtml}
+                        </div>
+                        <div class="relative inline-block">
+                            <input type="text" data-group="${g.group_no}" placeholder="+ добавить тег..." 
+                                autocomplete="off"
+                                data-lpignore="true"
+                                class="tag-input bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 w-48">
+                            
+                            <div class="tag-dropdown hidden absolute left-0 mt-1 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-20 max-h-40 overflow-y-auto"></div>
+                        </div>
+                    </div>
+
+                    <!-- ЗАМЕТКА -->
+                    <div class="pt-1">
+                        <div id="noteView_${g.group_no}" class="flex items-start justify-between bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 text-xs text-slate-300">
+                            <div class="flex-1 pr-3 whitespace-pre-wrap">${currentNote ? esc(currentNote) : '<span class="text-slate-600 italic">Комментарий не добавлен...</span>'}</div>
+                            <button type="button" data-group="${g.group_no}" class="edit-note-btn text-indigo-400 hover:text-indigo-300 text-[11px] font-semibold flex items-center gap-1">
+                                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit
+                            </button>
+                        </div>
+                        <div id="noteEdit_${g.group_no}" class="hidden space-y-2">
+                            <textarea id="noteTextarea_${g.group_no}" placeholder="Заметка к сделке (эмоции, сетап, ошибки)..." 
+                                class="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 h-20 resize-y">${esc(currentNote)}</textarea>
+                            <div class="flex justify-end gap-2">
+                                <button type="button" data-group="${g.group_no}" class="cancel-note-btn px-3 py-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white text-xs font-semibold">Отмена</button>
+                                <button type="button" data-group="${g.group_no}" class="save-note-btn px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold">Сохранить</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- СКРИНШОТЫ -->
+                    ${snapshotHtml}
+                `;
+                container.appendChild(cardDiv);
             }
 
-            snapshotHtml = `
-                <div class="space-y-3 mt-3">
-                    ${imagesListHtml}
-                    <div class="p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-500 space-y-3">
-                        <div class="flex items-center justify-center gap-2">
-                            <i data-lucide="camera" class="w-4 h-4 opacity-40"></i>
-                            <span>Загрузить график в сделку:</span>
-                        </div>
-                        <div class="flex flex-wrap items-center justify-center gap-2">
-                            <select id="uploadKind_${g.group_no}" class="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-indigo-500 font-mono">
-                                <option value="open">Вход (open)</option>
-                                <option value="manual" selected>Ручной (manual)</option>
-                                <option value="after">После закрытия (after)</option>
-                                <option value="other">Другое (other)</option>
-                            </select>
-                            <input type="file" accept="image/png, image/jpeg, image/webp" data-group="${g.group_no}" class="shot-file-input text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 cursor-pointer bg-slate-950 border border-slate-800 rounded-lg">
-                        </div>
-                    </div>
-                </div>
-            `;
+            bindJournalEvents();
+            lucide.createIcons();
         }
 
-        let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.max_qty ? r.net_now : r.max_qty} контр.)`).join(', ');
-        const currentNote = notesDBData[g.group_no] || '';
-
-        cardDiv.innerHTML = `
-            <div class="flex items-center justify-between border-b border-slate-800/60 pb-3">
-                <div class="flex items-center space-x-3">
-                    <span class="px-2.5 py-1 rounded-lg bg-slate-800 font-mono font-bold text-white text-xs">#${g.group_no}</span>
-                    ${dirBadge}
-                    <div>
-                        <span class="font-bold text-white text-xs">${esc(g.instrument || 'NQ')}</span>
-                        <span class="text-xs text-slate-300 font-medium ml-2 font-mono">Счета: ${accountsListStr}</span>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-4 text-right">
-                    <div class="hidden sm:block text-xs font-mono text-slate-400">
-                        <div>${openTime}</div>
-                        <div class="text-[10px] text-slate-500">⏱ ${durationStr}</div>
-                    </div>
-                    <div class="font-bold font-mono text-base ${ticksClass}">
-                        ${ticksStr}
-                    </div>
-                    <div class="font-bold font-mono text-lg ${cashClass} min-w-[90px]">
-                        ${cashStr}
-                    </div>
-                </div>
-            </div>
-
-            <!-- ТЕГИ -->
-            <div class="flex flex-wrap items-center gap-2 pt-1">
-                <span class="text-[11px] font-semibold text-slate-400 uppercase">Теги:</span>
-                <div class="flex flex-wrap items-center gap-1.5">
-                    ${tagsHtml}
-                </div>
-                <div class="relative inline-block">
-                    <input type="text" data-group="${g.group_no}" placeholder="+ добавить тег..." 
-                        autocomplete="off"
-                        data-lpignore="true"
-                        class="tag-input bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 w-48">
-                    
-                    <div class="tag-dropdown hidden absolute left-0 mt-1 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-20 max-h-40 overflow-y-auto"></div>
-                </div>
-            </div>
-
-            <!-- ЗАМЕТКА -->
-            <div class="pt-1">
-                <div id="noteView_${g.group_no}" class="flex items-start justify-between bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 text-xs text-slate-300">
-                    <div class="flex-1 pr-3 whitespace-pre-wrap">${currentNote ? esc(currentNote) : '<span class="text-slate-600 italic">Комментарий не добавлен...</span>'}</div>
-                    <button type="button" data-group="${g.group_no}" class="edit-note-btn text-indigo-400 hover:text-indigo-300 text-[11px] font-semibold flex items-center gap-1">
-                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit
-                    </button>
-                </div>
-                <div id="noteEdit_${g.group_no}" class="hidden space-y-2">
-                    <textarea id="noteTextarea_${g.group_no}" placeholder="Заметка к сделке (эмоции, сетап, ошибки)..." 
-                        class="w-full bg-slate-900 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-indigo-500 h-20 resize-y">${esc(currentNote)}</textarea>
-                    <div class="flex justify-end gap-2">
-                        <button type="button" data-group="${g.group_no}" class="cancel-note-btn px-3 py-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white text-xs font-semibold">Отмена</button>
-                        <button type="button" data-group="${g.group_no}" class="save-note-btn px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold">Сохранить</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- СКРИНШОТЫ -->
-            ${snapshotHtml}
-        `;
-        container.appendChild(cardDiv);
-    }
-
-    bindJournalEvents();
-    lucide.createIcons();
-
-    // Восстанавливаем позицию скролла после полной перерисовки
-    if (savedScrollY !== null) {
-        window.scrollTo(0, savedScrollY);
-    }
-}
         async function fetchFreeSnapshots() {
             if (!supabaseClient) return;
 
@@ -1759,19 +1752,14 @@
             reloadCurrentDayJournal();
         }
 
-		function reloadCurrentDayJournal() {
-			// 1. Запоминаем текущую позицию скролла пользователя
-			const scrollPosition = window.scrollY;
-
-			if (selectedDayKey) {
-				const dayTrades = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey);
-				// Передаем флаг сохранения скролла в асинхронную отрисовку
-				loadAndRenderDayJournal(`Сделки за день ${selectedDayKey}`, dayTrades, scrollPosition);
-			} else {
-				renderCalendar();
-				window.scrollTo(0, scrollPosition);
-			}
-		}
+        function reloadCurrentDayJournal() {
+            if (selectedDayKey) {
+                const dayTrades = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey);
+                loadAndRenderDayJournal(`Сделки за день ${selectedDayKey}`, dayTrades);
+            } else {
+                renderCalendar();
+            }
+        }
 
         function renderHeaderControls(pnl) {
             const cardHeader = document.getElementById('dayControlsHeader');
