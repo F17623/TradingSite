@@ -5,7 +5,7 @@
     <title>Тест тегов в карточке сделки</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .custom-scrollbar::-webkit-scrollbar { height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar { height: 4px; width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.4); border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
     </style>
@@ -20,32 +20,30 @@
             </button>
         </div>
 
-        <!-- Контейнер со списком сделок -->
-        <div id="trades-list" class="space-y-4">
-            <!-- Сюда динамически рендерятся карточки -->
-        </div>
+        <div id="trades-list" class="space-y-4"></div>
     </div>
 
     <script>
-        // Глобальный список автозаполнения (храним в localStorage браузера)
-		// Получение истории тегов из localStorage
-		function getSavedHistoryTags() {
-			const saved = localStorage.getItem('trading_journal_tag_history');
-			// Если пусто, возвращаем базовый набор, чтобы было с чем работать
-			return saved ? JSON.parse(saved) : ['500t', '5m_at_mid', 'tick_25%', 'tick_below_mid', 'tick_trend_down', 'ema_bounce', 'trend_day', 'breakout'];
-		}
+        function getSavedHistoryTags() {
+            const saved = localStorage.getItem('trading_journal_tag_history');
+            return saved ? JSON.parse(saved) : [
+                '500t', '5m_at_mid', 'tick_25%', 'tick_below_mid', 'tick_trend_down',
+                'ema_bounce', 'trend_day', 'breakout', '3000t', 'chop_day',
+                'fvg', 'ob', 'liquidity_sweep', 'asia', 'london', 'ny_open'
+            ];
+        }
 
-		function saveHistoryTag(tag) {
-			let history = getSavedHistoryTags();
-			if (!history.includes(tag)) {
-				history.push(tag);
-				localStorage.setItem('trading_journal_tag_history', JSON.stringify(history));
-			}
-		}
+        function saveHistoryTag(tag) {
+            let history = getSavedHistoryTags();
+            const exists = history.some(t => t.toLowerCase() === tag.toLowerCase());
+            if (!exists) {
+                history.push(tag);
+                localStorage.setItem('trading_journal_tag_history', JSON.stringify(history));
+            }
+        }
 
-        // Демо-данные для карточек
         let tradesData = [
-            { id: 120, type: 'LONG', symbol: 'NQ DEC26', account: 'APEX628630000007', pnl: '+$60.00', ticks: '+12 t', tags: ['500t', '5m_at_mid', 'tick_25%', 'tick_below_mid', 'tick_trend_down'] },
+            { id: 120, type: 'LONG', symbol: 'NQ DEC26', account: 'APEX628630000007', pnl: '+$60.00', ticks: '+12 t', tags: ['500t', '5m_at_mid', 'tick_25%'] },
             { id: 121, type: 'SHORT', symbol: 'ES DEC26', account: 'APEX628630000007', pnl: '-$25.00', ticks: '-5 t', tags: ['3000t', 'chop_day'] }
         ];
 
@@ -55,10 +53,9 @@
 
             tradesData.forEach((trade, tradeIndex) => {
                 const card = document.createElement('div');
-                card.className = "bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl w-full transition-all";
-                
+                card.className = "bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl w-full";
+
                 card.innerHTML = `
-                    <!-- Верхняя шапка сделки -->
                     <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
                         <div class="flex items-center gap-3">
                             <span class="bg-slate-800 text-slate-300 font-mono text-xs px-2.5 py-1 rounded border border-slate-700">#${trade.id}</span>
@@ -73,24 +70,39 @@
                         </div>
                     </div>
 
-                    <!-- Блок тегов на всю ширину -->
+                    <!-- Блок тегов -->
                     <div class="flex items-center gap-3 bg-slate-950/60 border border-slate-800/80 rounded-lg p-2.5">
                         <span class="text-xs font-bold text-slate-400 tracking-wider shrink-0">ТЕГИ:</span>
-                        
-                        <!-- Скролл только для бейджей (без overflow на родителе инпута) -->
-                        <div id="tag-container-${tradeIndex}" class="custom-scrollbar flex items-center gap-2 overflow-x-auto whitespace-nowrap flex-grow py-0.5 min-w-0">
-                            <!-- Бейджи тегов вставляются сюда -->
-                        </div>
 
-                        <!-- Инпут + дропдаун ВНЕ overflow-контейнера -->
+                        <!-- Скролл только для бейджей -->
+                        <div id="tag-container-${tradeIndex}" class="custom-scrollbar flex items-center gap-2 overflow-x-auto whitespace-nowrap flex-grow py-0.5 min-w-0"></div>
+
+                        <!-- Кнопка + поле + dropdown -->
                         <div class="relative shrink-0" id="input-wrapper-${tradeIndex}">
-                            <input type="text" 
-                                   id="tag-input-${tradeIndex}" 
-                                   placeholder="+ добавить тег..." 
-                                   autocomplete="off"
-                                   class="bg-slate-900/90 border border-slate-700/60 hover:border-slate-600 focus:border-blue-500 rounded px-2.5 py-1 text-xs text-slate-200 placeholder-slate-500 outline-none w-32 transition-colors">
-                            
-                            <div id="dropdown-${tradeIndex}" class="hidden absolute left-0 top-full mt-1.5 w-52 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl z-50 max-h-48 overflow-y-auto custom-scrollbar"></div>
+                            <div class="flex items-center gap-1.5">
+                                <input type="text"
+                                       id="tag-input-${tradeIndex}"
+                                       placeholder="+ новый..."
+                                       autocomplete="off"
+                                       class="bg-slate-900/90 border border-slate-700/60 hover:border-slate-600 focus:border-blue-500 rounded px-2.5 py-1 text-xs text-slate-200 placeholder-slate-500 outline-none w-28 transition-colors">
+                                <button type="button"
+                                        id="tag-toggle-${tradeIndex}"
+                                        class="shrink-0 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 font-medium transition-colors">
+                                    ▼
+                                </button>
+                            </div>
+
+                            <!-- Выпадающий список с чекбоксами -->
+                            <div id="dropdown-${tradeIndex}"
+                                 class="hidden absolute right-0 top-full mt-1.5 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+                                <div class="px-3 py-2 border-b border-slate-800 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                                    Выберите теги
+                                </div>
+                                <div id="dropdown-list-${tradeIndex}" class="max-h-52 overflow-y-auto custom-scrollbar py-1"></div>
+                                <div class="px-3 py-2 border-t border-slate-800 bg-slate-950/50 text-[10px] text-slate-500">
+                                    Enter — добавить новый тег
+                                </div>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -103,97 +115,167 @@
         function initTagInput(tradeIndex) {
             const trade = tradesData[tradeIndex];
             const container = document.getElementById(`tag-container-${tradeIndex}`);
-            const inputWrapper = document.getElementById(`input-wrapper-${tradeIndex}`);
             const input = document.getElementById(`tag-input-${tradeIndex}`);
+            const toggleBtn = document.getElementById(`tag-toggle-${tradeIndex}`);
             const dropdown = document.getElementById(`dropdown-${tradeIndex}`);
+            const dropdownList = document.getElementById(`dropdown-list-${tradeIndex}`);
 
             function renderBadges() {
-                // Полностью перерисовываем бейджи внутри scroll-контейнера
                 container.innerHTML = '';
-
                 trade.tags.forEach((tag, tIdx) => {
                     const badge = document.createElement('span');
                     badge.className = "tag-badge shrink-0 inline-flex items-center gap-1.5 bg-blue-950/90 text-blue-300 text-xs px-2.5 py-1 rounded-md border border-blue-800/60 font-medium";
                     badge.innerHTML = `
                         <span>${tag}</span>
-                        <button type="button" onclick="removeTradeTag(${tradeIndex}, ${tIdx})" class="text-blue-400 hover:text-white transition-colors font-bold leading-none">&times;</button>
+                        <button type="button" data-idx="${tIdx}" class="remove-tag-btn text-blue-400 hover:text-white transition-colors font-bold leading-none">&times;</button>
                     `;
                     container.appendChild(badge);
                 });
+
+                // навешиваем удаление
+                container.querySelectorAll('.remove-tag-btn').forEach(btn => {
+                    btn.onclick = (e) => {
+                        e.stopPropagation();
+                        const idx = Number(btn.getAttribute('data-idx'));
+                        trade.tags.splice(idx, 1);
+                        renderBadges();
+                        renderCheckboxList(input.value);
+                    };
+                });
             }
 
-            function showDropdown(filter = '') {
+            function isSelected(tagName) {
+                return trade.tags.some(t => t.toLowerCase() === tagName.toLowerCase());
+            }
+
+            function toggleTag(tagName) {
+                const idx = trade.tags.findIndex(t => t.toLowerCase() === tagName.toLowerCase());
+                if (idx >= 0) {
+                    trade.tags.splice(idx, 1);
+                } else {
+                    trade.tags.push(tagName);
+                    saveHistoryTag(tagName);
+                }
+                renderBadges();
+                renderCheckboxList(input.value);
+                setTimeout(() => { container.scrollLeft = container.scrollWidth; }, 20);
+            }
+
+            function renderCheckboxList(filter = '') {
                 const history = getSavedHistoryTags();
                 const q = (filter || '').toLowerCase().trim();
 
-                // Регистронезависимый фильтр + не показываем уже выбранные теги
-                const filtered = history.filter(t => {
-                    const tagLower = String(t).toLowerCase();
-                    const already = trade.tags.some(ex => String(ex).toLowerCase() === tagLower);
-                    return !already && (q === '' || tagLower.includes(q));
+                // Все теги из истории + уже выбранные (на случай если их нет в history)
+                const allTags = [...new Set([
+                    ...history,
+                    ...trade.tags
+                ])];
+
+                const filtered = allTags.filter(t => {
+                    if (q === '') return true;
+                    return t.toLowerCase().includes(q);
                 });
 
+                // Сортируем: сначала выбранные, потом остальные
+                filtered.sort((a, b) => {
+                    const aSel = isSelected(a) ? 0 : 1;
+                    const bSel = isSelected(b) ? 0 : 1;
+                    if (aSel !== bSel) return aSel - bSel;
+                    return a.localeCompare(b);
+                });
+
+                dropdownList.innerHTML = '';
+
                 if (filtered.length === 0) {
-                    dropdown.classList.add('hidden');
+                    dropdownList.innerHTML = `<div class="px-3 py-3 text-xs text-slate-500 text-center">Нет подходящих тегов</div>`;
                     return;
                 }
 
-                dropdown.innerHTML = '';
-                filtered.forEach(item => {
-                    const div = document.createElement('div');
-                    div.className = "px-3 py-2 text-xs text-slate-300 hover:bg-blue-600 hover:text-white cursor-pointer transition-colors border-b border-slate-800/50 last:border-none";
-                    div.textContent = '#' + item;
-                    div.onmousedown = (e) => {
-                        e.preventDefault(); // не даём input потерять фокус
-                        addTagToTrade(tradeIndex, item);
-                    };
-                    dropdown.appendChild(div);
-                });
+                filtered.forEach(tag => {
+                    const checked = isSelected(tag);
+                    const row = document.createElement('label');
+                    row.className = "flex items-center gap-2.5 px-3 py-2 text-xs cursor-pointer hover:bg-slate-800/80 transition-colors " +
+                                    (checked ? "text-blue-300" : "text-slate-300");
 
+                    row.innerHTML = `
+                        <input type="checkbox" class="tag-checkbox rounded border-slate-600 bg-slate-900 text-blue-500 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5" ${checked ? 'checked' : ''}>
+                        <span class="font-mono">#${tag}</span>
+                    `;
+
+                    const checkbox = row.querySelector('input');
+                    checkbox.onchange = (e) => {
+                        e.stopPropagation();
+                        toggleTag(tag);
+                    };
+
+                    // Клик по всей строке тоже переключает
+                    row.onclick = (e) => {
+                        if (e.target === checkbox) return; // уже обработано
+                        e.preventDefault();
+                        checkbox.checked = !checkbox.checked;
+                        toggleTag(tag);
+                    };
+
+                    dropdownList.appendChild(row);
+                });
+            }
+
+            function openDropdown() {
+                renderCheckboxList(input.value);
                 dropdown.classList.remove('hidden');
             }
 
-            function addTagToTrade(tIdx, val) {
-                const clean = String(val).trim().replace(/[^a-zA-Z0-9%_\-]/g, '');
-                if (!clean) return;
-
-                const already = tradesData[tIdx].tags.some(t => String(t).toLowerCase() === clean.toLowerCase());
-                if (already) return;
-
-                tradesData[tIdx].tags.push(clean);
-                saveHistoryTag(clean);
-                renderBadges();
-                input.value = '';
+            function closeDropdown() {
                 dropdown.classList.add('hidden');
-
-                setTimeout(() => { container.scrollLeft = container.scrollWidth; }, 30);
             }
 
-            window.removeTradeTag = function(tIdx, tagIdx) {
-                tradesData[tIdx].tags.splice(tagIdx, 1);
-                renderTrades();
-            };
-
-            // события — только один раз
-            input.addEventListener('focus', () => showDropdown(input.value));
-            input.addEventListener('input', (e) => showDropdown(e.target.value));
-            input.addEventListener('blur', () => {
-                setTimeout(() => dropdown.classList.add('hidden'), 200);
-            });
-
-            input.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ',') {
-                    e.preventDefault();
-                    if (input.value.trim()) {
-                        addTagToTrade(tradeIndex, input.value);
-                    }
-                } else if (e.key === 'Backspace' && input.value === '' && trade.tags.length > 0) {
-                    trade.tags.pop();
-                    renderBadges();
+            // Кнопка ▼
+            toggleBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (dropdown.classList.contains('hidden')) {
+                    openDropdown();
+                } else {
+                    closeDropdown();
                 }
             });
 
-            // Горизонтальный скролл колесиком
+            // Фокус / ввод в поле
+            input.addEventListener('focus', () => openDropdown());
+            input.addEventListener('input', () => {
+                renderCheckboxList(input.value);
+                dropdown.classList.remove('hidden');
+            });
+
+            // Enter — добавить новый тег
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    const val = input.value.trim().replace(/[^a-zA-Z0-9%_\-]/g, '');
+                    if (val) {
+                        if (!isSelected(val)) {
+                            trade.tags.push(val);
+                            saveHistoryTag(val);
+                            renderBadges();
+                        }
+                        input.value = '';
+                        renderCheckboxList('');
+                        setTimeout(() => { container.scrollLeft = container.scrollWidth; }, 20);
+                    }
+                } else if (e.key === 'Escape') {
+                    closeDropdown();
+                    input.blur();
+                }
+            });
+
+            // Клик вне — закрыть
+            document.addEventListener('click', (e) => {
+                const wrapper = document.getElementById(`input-wrapper-${tradeIndex}`);
+                if (wrapper && !wrapper.contains(e.target)) {
+                    closeDropdown();
+                }
+            });
+
+            // Горизонтальный скролл колесиком по бейджам
             container.addEventListener('wheel', (e) => {
                 if (e.deltaY !== 0) {
                     e.preventDefault();
@@ -205,7 +287,7 @@
         }
 
         window.addTradeCard = function() {
-            const newId = tradesData.length > 0 ? tradesData[tradesData.length - 1].id + 1 : 120; 
+            const newId = tradesData.length > 0 ? tradesData[tradesData.length - 1].id + 1 : 120;
             tradesData.push({
                 id: newId,
                 type: Math.random() > 0.5 ? 'LONG' : 'SHORT',
@@ -213,10 +295,10 @@
                 account: 'APEX628630000007',
                 pnl: '+$45.00',
                 ticks: '+9 t',
-                tags: ['500t']
+                tags: []
             });
             renderTrades();
-        }
+        };
 
         renderTrades();
     </script>
