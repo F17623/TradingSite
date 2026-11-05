@@ -86,8 +86,8 @@
                                        placeholder="+ добавить тег..." 
                                        class="bg-slate-900/90 border border-slate-700/60 hover:border-slate-600 focus:border-blue-500 rounded px-2.5 py-1 text-xs text-slate-200 placeholder-slate-500 outline-none w-32 transition-colors">
                                 
-                                <!-- Выпадающий список автозаполнения -->
-                                <div id="dropdown-${tradeIndex}" class="hidden absolute left-0 bottom-full mb-1.5 w-48 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl z-50 max-h-40 overflow-y-auto custom-scrollbar"></div>
+                                <!-- Выпадающий список автозаполнения (открывается вниз) -->
+                                <div id="dropdown-${tradeIndex}" class="hidden absolute left-0 top-full mt-1.5 w-48 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl z-50 max-h-40 overflow-y-auto custom-scrollbar"></div>
                             </div>
                         </div>
                     </div>
@@ -121,14 +121,16 @@
                 });
             }
 
-            // Рендер выпадающего списка подсказок
-// Рендер выпадающего списка подсказок
             function showDropdown(filter = '') {
                 const history = getSavedHistoryTags();
-                // Фильтруем по введенному тексту и убираем те, что уже стоят в ЭТОЙ сделке
-                const filtered = history.filter(t => 
-                    t.includes(filter.toLowerCase().trim()) && !trade.tags.includes(t)
-                );
+                const q = filter.toLowerCase().trim();
+
+                // Регистронезависимый поиск + исключаем уже выбранные теги
+                const filtered = history.filter(t => {
+                    const tagLower = t.toLowerCase();
+                    const alreadySelected = trade.tags.some(existing => existing.toLowerCase() === tagLower);
+                    return !alreadySelected && (q === '' || tagLower.includes(q));
+                });
 
                 if (filtered.length === 0) {
                     dropdown.classList.add('hidden');
@@ -141,7 +143,7 @@
                     div.className = "px-3 py-2 text-xs text-slate-300 hover:bg-blue-600 hover:text-white cursor-pointer transition-colors border-b border-slate-800/50 last:border-none";
                     div.textContent = '#' + item;
                     div.onmousedown = (e) => {
-                        e.preventDefault(); // Защита от потери фокуса до клика
+                        e.preventDefault(); // чтобы input не потерял фокус до клика
                         addTagToTrade(tradeIndex, item);
                     };
                     dropdown.appendChild(div);
@@ -150,44 +152,35 @@
                 dropdown.classList.remove('hidden');
             }
 
-            // Показываем все доступные сохраненные теги при фокусе или клике
+            function addTagToTrade(tIdx, val) {
+                // оставляем исходный регистр из истории, только чистим лишние символы
+                const clean = val.trim().replace(/[^a-zA-Z0-9%_\-]/g, '');
+                if (!clean) return;
+
+                const already = tradesData[tIdx].tags.some(t => t.toLowerCase() === clean.toLowerCase());
+                if (already) return;
+
+                tradesData[tIdx].tags.push(clean);
+                saveHistoryTag(clean);
+                renderBadges();
+                input.value = '';
+                dropdown.classList.add('hidden');
+
+                // автоскролл вправо к новому тегу
+                setTimeout(() => { container.scrollLeft = container.scrollWidth; }, 30);
+            }
+
+            window.removeTradeTag = function(tIdx, tagIdx) {
+                tradesData[tIdx].tags.splice(tagIdx, 1);
+                renderTrades();
+            };
+
+            // --- события (только один раз) ---
             input.addEventListener('focus', () => {
                 showDropdown(input.value);
             });
 
             input.addEventListener('input', (e) => {
-                showDropdown(e.target.value);
-            });
-
-            input.addEventListener('blur', () => {
-                // Небольшая задержка, чтобы успел сработать клик по выпадающему списку
-                setTimeout(() => dropdown.classList.add('hidden'), 250);
-            });
-
-            function addTagToTrade(tIdx, val) {
-                const clean = val.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
-                if (clean && !tradesData[tIdx].tags.includes(clean)) {
-                    tradesData[tIdx].tags.push(clean);
-                    saveHistoryTag(clean);
-                    renderBadges();
-                    input.value = '';
-                    dropdown.classList.add('hidden');
-                    
-                    // Плавный автоскролл вправо
-                    setTimeout(() => { container.scrollLeft = container.scrollWidth; }, 30);
-                }
-            }
-
-            window.removeTradeTag = function(tIdx, tagIdx) {
-                tradesData[tIdx].tags.splice(tagIdx, 1);
-                renderTrades(); // перерендерим карточку
-            }
-
-            input.addEventListener('input', (e) => {
-                showDropdown(e.target.value);
-            });
-
-            input.addEventListener('focus', (e) => {
                 showDropdown(e.target.value);
             });
 
