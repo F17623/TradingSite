@@ -2,147 +2,217 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Тест горизонтального скролла тегов</title>
+    <title>Тест тегов в карточке сделки</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Стилизуем полосу прокрутки для плавной навигации */
-        .custom-scrollbar::-webkit-scrollbar {
-            height: 5px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-            background: rgba(15, 23, 42, 0.6);
-            border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #334155;
-            border-radius: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #475569;
-        }
+        .custom-scrollbar::-webkit-scrollbar { height: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.4); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 p-10 flex flex-col items-center">
+<body class="bg-slate-950 text-slate-100 p-8 flex flex-col items-center min-h-screen">
 
-    <div class="w-full max-w-xl bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-lg font-semibold text-slate-200">Теги сделки (Горизонтальный скролл)</h2>
-            <button onclick="addPresetTags()" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded border border-slate-600 transition-colors">
-                + Наполнить (~20 тегов)
+    <div class="w-full max-w-4xl space-y-6">
+        <div class="flex justify-between items-center mb-2">
+            <h1 class="text-xl font-bold text-slate-200">Песочница карточек сделок с тегами</h1>
+            <button onclick="addTradeCard()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors shadow">
+                + Добавить карточку для теста скролла
             </button>
         </div>
-        
-        <!-- Контейнер: flex-nowrap + overflow-x-auto держат всё в 1 строку -->
-        <div id="tag-container" 
-             class="custom-scrollbar flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg p-2.5 overflow-x-auto whitespace-nowrap focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 cursor-text" 
-             onclick="document.getElementById('tag-input').focus()">
-            
-            <!-- Динамические теги будут вставляться перед инпутом -->
-            
-            <input type="text" 
-                   id="tag-input" 
-                   placeholder="+ тег..." 
-                   class="bg-transparent outline-none text-sm text-slate-200 placeholder-slate-500 px-1 py-0.5 w-24 shrink-0">
-        </div>
-        
-        <p class="text-xs text-slate-500 mt-2">Прокручивайте колесиком мыши / свайпом вбок или зажмите Shift + Колесико.</p>
 
-        <!-- Проверка массива -->
-        <div class="mt-6">
-            <div class="flex justify-between items-center mb-1">
-                <label class="text-xs font-medium text-slate-400">В базе Supabase (всего: <span id="tag-count">0</span>):</label>
-            </div>
-            <input type="text" id="tag-hidden-output" readonly class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-400 font-mono">
+        <!-- Контейнер со списком сделок -->
+        <div id="trades-list" class="space-y-4">
+            <!-- Сюда динамически рендерятся карточки -->
         </div>
     </div>
 
     <script>
-        const tagContainer = document.getElementById('tag-container');
-        const tagInput = document.getElementById('tag-input');
-        const hiddenOutput = document.getElementById('tag-hidden-output');
-        const tagCount = document.getElementById('tag-count');
-
-        // Стартовый набор тегов
-        let tags = ['ema_bounce', 'trend_day', 'mes_micro', 'keltner_breakout', 'vwap_hold', 'morning_session'];
-
-        function renderTags() {
-            tagContainer.querySelectorAll('.tag-badge').forEach(el => el.remove());
-
-            tags.forEach((tag, index) => {
-                const badge = document.createElement('span');
-                // shrink-0 не дает тегам сжиматься по ширине
-                badge.className = "tag-badge shrink-0 inline-flex items-center gap-1.5 bg-blue-950/80 text-blue-300 text-xs px-2.5 py-1 rounded-md border border-blue-700/50 font-medium";
-                badge.innerHTML = `
-                    <span>#${tag}</span>
-                    <button type="button" onclick="removeTag(${index})" class="text-blue-400 hover:text-white transition-colors text-sm font-bold">&times;</button>
-                `;
-                tagContainer.insertBefore(badge, tagInput);
-            });
-
-            hiddenOutput.value = JSON.stringify(tags);
-            tagCount.textContent = tags.length;
+        // Глобальный список автозаполнения (храним в localStorage браузера)
+        function getSavedHistoryTags() {
+            const saved = localStorage.getItem('trading_journal_tag_history');
+            return saved ? JSON.parse(saved) : ['500t', '5m_at_mid', 'tick_25%', 'tick_below_mid', 'tick_trend_down', 'ema_bounce', 'trend_day', 'breakout'];
         }
 
-        function addTag(text) {
-            const cleanText = text.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
-            if (cleanText && !tags.includes(cleanText)) {
-                tags.push(cleanText);
-                renderTags();
+        function saveHistoryTag(tag) {
+            let history = getSavedHistoryTags();
+            if (!history.includes(tag)) {
+                history.push(tag);
+                localStorage.setItem('trading_journal_tag_history', JSON.stringify(history));
+            }
+        }
+
+        // Демо-данные для карточек
+        let tradesData = [
+            { id: 120, type: 'LONG', symbol: 'NQ DEC26', account: 'APEX628630000007', pnl: '+$60.00', ticks: '+12 t', tags: ['500t', '5m_at_mid', 'tick_25%', 'tick_below_mid', 'tick_trend_down'] },
+            { id: 121, type: 'SHORT', symbol: 'ES DEC26', account: 'APEX628630000007', pnl: '-$25.00', ticks: '-5 t', tags: ['3000t', 'chop_day'] }
+        ];
+
+        function renderTrades() {
+            const listContainer = document.getElementById('trades-list');
+            listContainer.innerHTML = '';
+
+            tradesData.forEach((trade, tradeIndex) => {
+                const card = document.createElement('div');
+                card.className = "bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-xl w-full transition-all";
                 
-                // Автоскролл вправо при добавлении нового тега
-                setTimeout(() => {
-                    tagContainer.scrollLeft = tagContainer.scrollWidth;
-                }, 50);
-            }
-            tagInput.value = '';
-        }
+                card.innerHTML = `
+                    <!-- Верхняя шапка сделки -->
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div class="flex items-center gap-3">
+                            <span class="bg-slate-800 text-slate-300 font-mono text-xs px-2.5 py-1 rounded border border-slate-700">#${trade.id}</span>
+                            <span class="bg-emerald-950 text-emerald-400 font-bold text-xs px-2.5 py-1 rounded border border-emerald-800/60">${trade.type} ▲</span>
+                            <span class="font-bold text-slate-100">${trade.symbol}</span>
+                            <span class="text-xs text-slate-400">Счета: ${trade.account} (1 контр.)</span>
+                        </div>
+                        <div class="flex items-center gap-4">
+                            <span class="text-xs text-slate-400">06:48:58 PM</span>
+                            <span class="text-emerald-400 font-semibold text-sm">${trade.ticks}</span>
+                            <span class="text-emerald-400 font-bold text-sm">${trade.pnl}</span>
+                        </div>
+                    </div>
 
-        window.removeTag = function(index) {
-            tags.splice(index, 1);
-            renderTags();
-        }
+                    <!-- Блок тегов на всю ширину -->
+                    <div class="flex items-center gap-3 bg-slate-950/60 border border-slate-800/80 rounded-lg p-2.5 relative">
+                        <span class="text-xs font-bold text-slate-400 tracking-wider shrink-0">ТЕГИ:</span>
+                        
+                        <!-- Скролл-контейнер для тегов и инпута -->
+                        <div id="tag-container-${tradeIndex}" class="custom-scrollbar flex items-center gap-2 overflow-x-auto whitespace-nowrap flex-grow py-0.5">
+                            <!-- Бейджи тегов вставляются сюда -->
+                            <div class="relative shrink-0 inline-block" id="input-wrapper-${tradeIndex}">
+                                <input type="text" 
+                                       id="tag-input-${tradeIndex}" 
+                                       placeholder="+ добавить тег..." 
+                                       class="bg-slate-900/90 border border-slate-700/60 hover:border-slate-600 focus:border-blue-500 rounded px-2.5 py-1 text-xs text-slate-200 placeholder-slate-500 outline-none w-32 transition-colors">
+                                
+                                <!-- Выпадающий список автозаполнения -->
+                                <div id="dropdown-${tradeIndex}" class="hidden absolute left-0 bottom-full mb-1.5 w-48 bg-slate-900 border border-slate-700 rounded-lg shadow-2xl z-50 max-h-40 overflow-y-auto custom-scrollbar"></div>
+                            </div>
+                        </div>
+                    </div>
+                `;
 
-        // Заполнение 20 тегами по кнопке
-        window.addPresetTags = function() {
-            const presets = [
-                'es_futures', 'mnq_scalp', 'scaled_entry', 'stop_moved', 'fomo_entry', 
-                'high_volatility', 'news_impulse', 'target_hit', 'chop_day', 'level_retest',
-                'rule_break', 'perfect_execution', 'revenge_trade', 'early_exit'
-            ];
-            presets.forEach(t => {
-                if (!tags.includes(t)) tags.push(t);
+                listContainer.appendChild(card);
+                initTagInput(tradeIndex);
             });
-            renderTags();
-            setTimeout(() => {
-                tagContainer.scrollLeft = tagContainer.scrollWidth;
-            }, 50);
         }
 
-        tagInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' || e.key === ',') {
-                e.preventDefault();
-                addTag(tagInput.value);
-            } else if (e.key === 'Backspace' && tagInput.value === '' && tags.length > 0) {
-                tags.pop();
-                renderTags();
-            }
-        });
+        function initTagInput(tradeIndex) {
+            const trade = tradesData[tradeIndex];
+            const container = document.getElementById(`tag-container-${tradeIndex}`);
+            const inputWrapper = document.getElementById(`input-wrapper-${tradeIndex}`);
+            const input = document.getElementById(`tag-input-${tradeIndex}`);
+            const dropdown = document.getElementById(`dropdown-${tradeIndex}`);
 
-        tagInput.addEventListener('blur', () => {
-            if (tagInput.value.trim()) {
-                addTag(tagInput.value);
-            }
-        });
+            function renderBadges() {
+                // Удаляем старые теги (все кроме обертки инпута)
+                container.querySelectorAll('.tag-badge').forEach(el => el.remove());
 
-        // Включаем горизонтальную прокрутку колесиком мыши (без необходимости зажимать Shift)
-        tagContainer.addEventListener('wheel', (e) => {
-            if (e.deltaY !== 0) {
-                e.preventDefault();
-                tagContainer.scrollLeft += e.deltaY;
+                // Рендерим теги перед оберткой инпута
+                trade.tags.forEach((tag, tIdx) => {
+                    const badge = document.createElement('span');
+                    badge.className = "tag-badge shrink-0 inline-flex items-center gap-1.5 bg-blue-950/90 text-blue-300 text-xs px-2.5 py-1 rounded-md border border-blue-800/60 font-medium";
+                    badge.innerHTML = `
+                        <span>${tag}</span>
+                        <button type="button" onclick="removeTradeTag(${tradeIndex}, ${tIdx})" class="text-blue-400 hover:text-white transition-colors font-bold">&times;</button>
+                    `;
+                    container.insertBefore(badge, inputWrapper);
+                });
             }
-        });
 
-        renderTags();
+            // Рендер выпадающего списка подсказок
+            function showDropdown(filter = '') {
+                const history = getSavedHistoryTags();
+                const filtered = history.filter(t => t.includes(filter.toLowerCase()) && !trade.tags.includes(t));
+
+                if (filtered.length === 0) {
+                    dropdown.classList.add('hidden');
+                    return;
+                }
+
+                dropdown.innerHTML = '';
+                filtered.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = "px-3 py-1.5 text-xs text-slate-300 hover:bg-blue-600 hover:text-white cursor-pointer transition-colors";
+                    div.textContent = item;
+                    div.onmousedown = (e) => {
+                        e.preventDefault(); // чтобы инпут не терял фокус раньше времени
+                        addTagToTrade(tradeIndex, item);
+                    };
+                    dropdown.appendChild(div);
+                });
+
+                dropdown.classList.remove('hidden');
+            }
+
+            function addTagToTrade(tIdx, val) {
+                const clean = val.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
+                if (clean && !tradesData[tIdx].tags.includes(clean)) {
+                    tradesData[tIdx].tags.push(clean);
+                    saveHistoryTag(clean);
+                    renderBadges();
+                    input.value = '';
+                    dropdown.classList.add('hidden');
+                    
+                    // Плавный автоскролл вправо
+                    setTimeout(() => { container.scrollLeft = container.scrollWidth; }, 30);
+                }
+            }
+
+            window.removeTradeTag = function(tIdx, tagIdx) {
+                tradesData[tIdx].tags.splice(tagIdx, 1);
+                renderTrades(); // перерендерим карточку
+            }
+
+            input.addEventListener('input', (e) => {
+                showDropdown(e.target.value);
+            });
+
+            input.addEventListener('focus', (e) => {
+                showDropdown(e.target.value);
+            });
+
+            input.addEventListener('blur', () => {
+                setTimeout(() => dropdown.classList.add('hidden'), 200);
+            });
+
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ',') {
+                    e.preventDefault();
+                    if (input.value.trim()) {
+                        addTagToTrade(tradeIndex, input.value);
+                    }
+                } else if (e.key === 'Backspace' && input.value === '' && trade.tags.length > 0) {
+                    trade.tags.pop();
+                    renderBadges();
+                }
+            });
+
+            // Горизонтальный скролл колесиком
+            container.addEventListener('wheel', (e) => {
+                if (e.deltaY !== 0) {
+                    e.preventDefault();
+                    container.scrollLeft += e.deltaY;
+                }
+            });
+
+            renderBadges();
+        }
+
+        window.addTradeCard = function() {
+            const newId = tradesData.length > 0 ? tradesData[tradesData.length - 1].id + 1 : 120;
+            tradesData.push({
+                id: newId,
+                type: Math.random() > 0.5 ? 'LONG' : 'SHORT',
+                symbol: 'NQ DEC26',
+                account: 'APEX628630000007',
+                pnl: '+$45.00',
+                ticks: '+9 t',
+                tags: ['500t']
+            });
+            renderTrades();
+        }
+
+        renderTrades();
     </script>
 </body>
 </html>
