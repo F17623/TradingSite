@@ -316,7 +316,6 @@
                         </div>
                     </div>
                     
-                    <!-- Панель привязки свободных снимков -->
                     <div class="flex flex-wrap items-center gap-2">
                         <select id="freeTargetGroupSelect" class="bg-slate-950 text-xs text-white px-3 py-2 rounded-xl border border-slate-800 focus:outline-none focus:border-indigo-500 font-mono">
                             <option value="">-- Выберите сделку --</option>
@@ -551,7 +550,7 @@
         let selectedDayKey = null;
 
         let showSnapshots = localStorage.getItem('showSnapshots') !== 'false';
-        let cachedTags = [];
+        let cachedTags = []; // Глобальный список тегов из БД Supabase
         let allFirms = [];
         let allAccountsOverview = [];
 
@@ -564,27 +563,12 @@
         let currentRenderToken = 0;
 
         // ==========================================
-        // МЕНЕДЖЕР ИСТОРИИ ТЕГОВ И TAGPICKER
+        // МЕНЕДЖЕР ИСТОРИИ ТЕГОВ ИЗ БАЗЫ ДАННЫХ SUPABASE
         // ==========================================
         const TagHistory = {
-            storageKey: 'trading_journal_tag_history',
-            
             get() {
-                const saved = localStorage.getItem(this.storageKey);
-                return saved ? JSON.parse(saved) : [
-                    '500t', '5m_at_mid', 'tick_25%', 'tick_below_mid', 'tick_trend_down',
-                    'ema_bounce', 'trend_day', 'breakout', '3000t', 'chop_day',
-                    'fvg', 'ob', 'liquidity_sweep', 'asia', 'london', 'ny_open'
-                ];
-            },
-
-            add(tag) {
-                let history = this.get();
-                const exists = history.some(t => t.toLowerCase() === tag.toLowerCase());
-                if (!exists) {
-                    history.push(tag);
-                    localStorage.setItem(this.storageKey, JSON.stringify(history));
-                }
+                // Возвращает актуальный массив имён тегов напрямую из базы Supabase
+                return cachedTags.map(t => t.name);
             }
         };
 
@@ -656,7 +640,6 @@
                     this.selectedTags.splice(idx, 1);
                 } else {
                     this.selectedTags.push(tagName);
-                    TagHistory.add(tagName);
                 }
                 this.renderBadges();
                 this.renderCheckboxList(this.input.value);
@@ -1078,7 +1061,6 @@
 
                 renderRiskStatus(riskData);
                 
-                // Кешируем сделки дня и рендерим с текущей сортировкой
                 currentTradesCache = todayRows;
                 sortTrades(currentSortField, true);
 
@@ -1690,7 +1672,7 @@
             // Убеждаемся, что запись в trade_journal существует
             await supabaseClient.from('trade_journal').upsert({ group_no: Number(groupNo) }, { onConflict: 'group_no', ignoreDuplicates: true });
 
-            // Получаем список ID всех новых тегов (создаём их при необходимости)
+            // Получаем список ID всех тегов
             const tagIds = [];
             for (const tagName of updatedTagNames) {
                 let { data: tagRecord } = await supabaseClient.from('tags').select('id').eq('name', tagName).single();
@@ -1701,15 +1683,16 @@
                 if (tagRecord) tagIds.push(tagRecord.id);
             }
 
-            // Удаляем старые теги для этой сделки
+            // Удаляем старые связи для этой сделки
             await supabaseClient.from('trade_tags').delete().eq('group_no', Number(groupNo));
 
-            // Записываем обновленный набор тегов
+            // Записываем обновленный набор связей
             if (tagIds.length > 0) {
                 const insertRows = tagIds.map(tid => ({ group_no: Number(groupNo), tag_id: tid }));
                 await supabaseClient.from('trade_tags').insert(insertRows);
             }
 
+            // Обновляем локальный кэш тегов из базы
             await fetchTagsList();
         }
 
