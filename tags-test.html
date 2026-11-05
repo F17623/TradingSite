@@ -54,7 +54,19 @@
         // ==========================================
         class TagPicker {
             constructor({ container, selectedTags = [], onChange }) {
-                this.container = typeof container === 'string' ? document.getElementById(container) : container;
+                if (typeof container === 'string') {
+                    // Поддерживаем и "#id", и просто "id"
+                    const id = container.startsWith('#') ? container.slice(1) : container;
+                    this.container = document.getElementById(id);
+                } else {
+                    this.container = container;
+                }
+
+                if (!this.container) {
+                    console.error('TagPicker: контейнер не найден', container);
+                    return;
+                }
+
                 this.selectedTags = [...selectedTags];
                 this.onChange = onChange || (() => {});
                 
@@ -119,7 +131,7 @@
 
             renderBadges() {
                 this.badgesContainer.innerHTML = '';
-                this.selectedTags.forEach((tag, idx) => {
+                this.selectedTags.forEach((tag) => {
                     const badge = document.createElement('span');
                     badge.className = "shrink-0 inline-flex items-center gap-1.5 bg-blue-950/90 text-blue-300 text-xs px-2.5 py-1 rounded-md border border-blue-800/60 font-medium";
                     badge.innerHTML = `
@@ -128,7 +140,8 @@
                     `;
                     badge.querySelector('button').onclick = (e) => {
                         e.stopPropagation();
-                        this.selectedTags.splice(idx, 1);
+                        // Удаляем по имени, а не по индексу (безопаснее)
+                        this.selectedTags = this.selectedTags.filter(t => t.toLowerCase() !== tag.toLowerCase());
                         this.renderBadges();
                         this.renderCheckboxList(this.input.value);
                         this.onChange(this.selectedTags);
