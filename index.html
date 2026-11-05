@@ -797,13 +797,24 @@
             return d.toISOString().slice(0, 10);
         }
 
-        function secondsToNextOpenCT() {
-            const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(new Date());
-            const g = n => Number(p.find(x => x.type === n).value) % 24;
-            let sec = (17 - g('hour')) * 3600 - g('minute') * 60 - g('second');
-            if (sec <= 0) sec += 86400;
-            return sec;
-        }
+function secondsToNextOpenCT() {
+    const p = new Intl.DateTimeFormat('en-US', { 
+        timeZone: 'America/Chicago', 
+        hour12: false, 
+        hour: '2-digit', minute: '2-digit', second: '2-digit' 
+    }).formatToParts(new Date());
+
+    const g = n => Number(p.find(x => x.type === n).value) % 24;
+    
+    const curH = g('hour');
+    const curM = g('minute');
+    const curS = g('second');
+
+    // Отсчет до 17:00:00 CT
+    let sec = (17 - curH) * 3600 - curM * 60 - curS;
+    if (sec <= 0) sec += 86400; // Если уже больше 17:00, отсчитываем до 17:00 следующего дня
+    return sec;
+}
 
         const esc = s => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -853,40 +864,74 @@
             selectCalendarDay(todayStr, todayTrades);
         }
 
-        function startSessionClock() {
-            setInterval(() => {
-                const now = new Date();
-                const ctStr = now.toLocaleString("en-US", { timeZone: "America/Chicago" });
-                const ctDate = new Date(ctStr);
-                const currentHour = ctDate.getHours();
+function startSessionClock() {
+    setInterval(() => {
+        const now = new Date();
 
-                const labelEl = document.getElementById('sessionLabel');
-                const timerEl = document.getElementById('sessionCountdown');
-                const dotEl = document.getElementById('sessionStatusDot');
+        // 1. Получаем текущее время в Чикаго через DateTimeFormat
+        const formatter = new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/Chicago',
+            hour12: false,
+            year: 'numeric', month: '2-digit', day: '2-digit',
+            hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
 
-                if (currentHour === 16) {
-                    const openTime = new Date(ctDate);
-                    openTime.setHours(17, 0, 0, 0);
-                    const diff = openTime - ctDate;
-                    const m = String(Math.floor((diff / (1000 * 60)) % 60)).padStart(2, '0');
-                    const s = String(Math.floor((diff / 1000) % 60)).padStart(2, '0');
-                    if (labelEl) labelEl.innerText = "Торги закрыты (перерыв)";
-                    if (timerEl) { timerEl.innerText = `00:${m}:${s}`; timerEl.className = "text-amber-400 font-bold"; }
-                    if (dotEl) dotEl.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
-                } else {
-                    const closeTime = new Date(ctDate);
-                    closeTime.setHours(16, 0, 0, 0);
-                    if (currentHour >= 17) closeTime.setDate(closeTime.getDate() + 1);
-                    const diff = closeTime - ctDate;
-                    const h = String(Math.floor((diff / (1000 * 60 * 60)) % 24)).padStart(2, '0');
-                    const m = String(Math.floor((diff / (1000 * 60)) % 60)).padStart(2, '0');
-                    const s = String(Math.floor((diff / 1000) % 60)).padStart(2, '0');
-                    if (labelEl) labelEl.innerText = "Futures close";
-                    if (timerEl) { timerEl.innerText = `${h}:${m}:${s}`; timerEl.className = "text-cyan-400 font-bold"; }
-                    if (dotEl) dotEl.className = "w-2 h-2 rounded-full bg-cyan-400 animate-pulse";
-                }
-            }, 1000);
+        const parts = formatter.formatToParts(now);
+        const getValue = type => parts.find(p => p.type === type).value;
+
+        const chYear = parseInt(getValue('year'));
+        const chMonth = parseInt(getValue('month')) - 1; // 0-indexed
+        const chDay = parseInt(getValue('day'));
+        const currentHour = parseInt(getValue('hour')) % 24;
+        const currentMin = parseInt(getValue('minute'));
+        const currentSec = parseInt(getValue('second'));
+
+        const labelEl = document.getElementById('sessionLabel');
+        const timerEl = document.getElementById('sessionCountdown');
+        const dotEl = document.getElementById('sessionStatusDot');
+
+        if (!labelEl || !timerEl || !dotEl) return;
+
+        // 2. В 16:00 CT биржи уходят на 1 час клиринга/перерыва (до 17:00 CT)
+        if (currentHour === 16) {
+            // Считаем сколько секунд осталось до 17:00:00 CT
+            const totalSecLeft = (59 - currentMin) * 60 + (60 - currentSec);
+            const m = String(Math.floor(totalSecLeft / 60)).padStart(2, '0');
+            const s = String(totalSecLeft % 60).padStart(2, '0');
+
+            labelEl.innerText = "Торги закрыты (перерыв)";
+            timerEl.innerText = `00:${m}:${s}`;
+            timerEl.className = "text-amber-400 font-bold";
+            dotEl.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+        } else {
+            // Торги открыты. Считаем время до 16:00:00 CT (закрытия дня)
+            let targetHour = 16;
+            let hoursLeft = targetHour - currentHour - 1;
+            if (hoursLeft < 0) hoursLeft += 24;
+
+            let minsLeft = 59 - currentMin;
+            let secsLeft = 60 - currentSec;
+
+            if (secsLeft === 60) {
+                secsLeft = 0;
+                minsLeft += 1;
+            }
+            if (minsLeft === 60) {
+                minsLeft = 0;
+                hoursLeft += 1;
+            }
+
+            const h = String(hoursLeft).padStart(2, '0');
+            const m = String(minsLeft).padStart(2, '0');
+            const s = String(secsLeft).padStart(2, '0');
+
+            labelEl.innerText = "Futures close";
+            timerEl.innerText = `${h}:${m}:${s}`;
+            timerEl.className = "text-cyan-400 font-bold";
+            dotEl.className = "w-2 h-2 rounded-full bg-cyan-400 animate-pulse";
         }
+    }, 1000);
+}
 
         function confirmAction(type, message) {
             if (currentLimitType === 'loss' || currentLimitType === 'profit') {
