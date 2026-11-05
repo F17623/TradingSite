@@ -544,6 +544,7 @@
         let tiltPanelTimer = null;
         let pollInterval = null;
         let currentLimitType = ''; 
+        let timeOffsetMs = 0; // serverNow - localNow
 
         let currentCalDate = new Date();
         let allCalendarTrades = [];
@@ -797,24 +798,27 @@
             return d.toISOString().slice(0, 10);
         }
 
-function secondsToNextOpenCT() {
-    const p = new Intl.DateTimeFormat('en-US', { 
-        timeZone: 'America/Chicago', 
-        hour12: false, 
-        hour: '2-digit', minute: '2-digit', second: '2-digit' 
-    }).formatToParts(new Date());
+        function secondsToNextOpenCT() {
+            const now = new Date(Date.now() + timeOffsetMs);
+            const formatter = new Intl.DateTimeFormat('en-GB', {
+                timeZone: 'America/Chicago',
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hourCycle: 'h23'
+            });
+            const parts = formatter.formatToParts(now);
+            const g = type => parseInt(parts.find(x => x.type === type).value, 10);
+            
+            const curH = g('hour');
+            const curM = g('minute');
+            const curS = g('second');
 
-    const g = n => Number(p.find(x => x.type === n).value) % 24;
-    
-    const curH = g('hour');
-    const curM = g('minute');
-    const curS = g('second');
-
-    // Отсчет до 17:00:00 CT
-    let sec = (17 - curH) * 3600 - curM * 60 - curS;
-    if (sec <= 0) sec += 86400; // Если уже больше 17:00, отсчитываем до 17:00 следующего дня
-    return sec;
-}
+            let sec = (17 - curH) * 3600 - curM * 60 - curS;
+            if (sec <= 0) sec += 86400;
+            return sec;
+        }
 
         const esc = s => String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
@@ -864,67 +868,63 @@ function secondsToNextOpenCT() {
             selectCalendarDay(todayStr, todayTrades);
         }
 
-function startSessionClock() {
-    setInterval(() => {
-        const now = new Date();
+        function startSessionClock() {
+            setInterval(() => {
+                const now = new Date(Date.now() + timeOffsetMs);
 
-        const formatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: 'America/Chicago',
-            hour12: false,
-            hour: '2-digit', minute: '2-digit', second: '2-digit'
-        });
+                const formatter = new Intl.DateTimeFormat('en-GB', {
+                    timeZone: 'America/Chicago',
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hourCycle: 'h23'
+                });
 
-        const parts = formatter.formatToParts(now);
-        const getValue = type => parseInt(parts.find(p => p.type === type).value, 10);
+                const parts = formatter.formatToParts(now);
+                const getValue = type => parseInt(parts.find(p => p.type === type).value, 10);
 
-        const currentHour = getValue('hour') % 24;
-        const currentMin = getValue('minute');
-        const currentSec = getValue('second');
+                const currentHour = getValue('hour');
+                const currentMin = getValue('minute');
+                const currentSec = getValue('second');
 
-        const labelEl = document.getElementById('sessionLabel');
-        const timerEl = document.getElementById('sessionCountdown');
-        const dotEl = document.getElementById('sessionStatusDot');
+                const labelEl = document.getElementById('sessionLabel');
+                const timerEl = document.getElementById('sessionCountdown');
+                const dotEl = document.getElementById('sessionStatusDot');
 
-        if (!labelEl || !timerEl || !dotEl) return;
+                if (!labelEl || !timerEl || !dotEl) return;
 
-        // Переводим текущее время Чикаго в общее количество секунд с начала суток
-        const currentTotalSec = currentHour * 3600 + currentMin * 60 + currentSec;
-        
-        // 16:00:00 CT в секундах от начала суток = 16 * 3600 = 57600
-        // 17:00:00 CT в секундах от начала суток = 17 * 3600 = 61200
-        const marketCloseSec = 16 * 3600;
-        const marketOpenSec = 17 * 3600;
+                const currentTotalSec = currentHour * 3600 + currentMin * 60 + currentSec;
+                const marketCloseSec = 16 * 3600;
+                const marketOpenSec = 17 * 3600;
 
-        if (currentTotalSec >= marketCloseSec && currentTotalSec < marketOpenSec) {
-            // Идет перерыв (с 16:00 до 17:00 CT)
-            const secLeft = marketOpenSec - currentTotalSec;
-            const h = String(Math.floor(secLeft / 3600)).padStart(2, '0');
-            const m = String(Math.floor((secLeft % 3600) / 60)).padStart(2, '0');
-            const s = String(secLeft % 60).padStart(2, '0');
+                if (currentTotalSec >= marketCloseSec && currentTotalSec < marketOpenSec) {
+                    const secLeft = marketOpenSec - currentTotalSec;
+                    const h = String(Math.floor(secLeft / 3600)).padStart(2, '0');
+                    const m = String(Math.floor((secLeft % 3600) / 60)).padStart(2, '0');
+                    const s = String(secLeft % 60).padStart(2, '0');
 
-            labelEl.innerText = "Торги закрыты (перерыв)";
-            timerEl.innerText = `${h}:${m}:${s}`;
-            timerEl.className = "text-amber-400 font-bold";
-            dotEl.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
-        } else {
-            // Торги открыты. Считаем время до 16:00:00 CT
-            let secLeft = marketCloseSec - currentTotalSec;
-            if (secLeft < 0) {
-                // Если уже после 17:00, считаем до 16:00 следующего дня
-                secLeft += 24 * 3600;
-            }
+                    labelEl.innerText = "Торги закрыты (перерыв)";
+                    timerEl.innerText = `${h}:${m}:${s}`;
+                    timerEl.className = "text-amber-400 font-bold";
+                    dotEl.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+                } else {
+                    let secLeft = marketCloseSec - currentTotalSec;
+                    if (secLeft < 0) {
+                        secLeft += 24 * 3600;
+                    }
 
-            const h = String(Math.floor(secLeft / 3600)).padStart(2, '0');
-            const m = String(Math.floor((secLeft % 3600) / 60)).padStart(2, '0');
-            const s = String(secLeft % 60).padStart(2, '0');
+                    const h = String(Math.floor(secLeft / 3600)).padStart(2, '0');
+                    const m = String(Math.floor((secLeft % 3600) / 60)).padStart(2, '0');
+                    const s = String(secLeft % 60).padStart(2, '0');
 
-            labelEl.innerText = "Futures close";
-            timerEl.innerText = `${h}:${m}:${s}`;
-            timerEl.className = "text-cyan-400 font-bold";
-            dotEl.className = "w-2 h-2 rounded-full bg-cyan-400 animate-pulse";
+                    labelEl.innerText = "Futures close";
+                    timerEl.innerText = `${h}:${m}:${s}`;
+                    timerEl.className = "text-cyan-400 font-bold";
+                    dotEl.className = "w-2 h-2 rounded-full bg-cyan-400 animate-pulse";
+                }
+            }, 1000);
         }
-    }, 1000);
-}
 
         function confirmAction(type, message) {
             if (currentLimitType === 'loss' || currentLimitType === 'profit') {
@@ -1078,6 +1078,16 @@ function startSessionClock() {
             }
 
             try {
+                // Получение эталонного времени из Supabase
+                try {
+                    const { data: serverTime, error: timeErr } = await supabaseClient.rpc('get_server_time');
+                    if (!timeErr && serverTime) {
+                        timeOffsetMs = new Date(serverTime).getTime() - Date.now();
+                    }
+                } catch (e) {
+                    // не ломаем основной fetchData, оставляем старый offset
+                }
+
                 const { data: riskData, error: riskErr } = await supabaseClient
                     .from('risk_control')
                     .select('*')
