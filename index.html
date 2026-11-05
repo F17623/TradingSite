@@ -694,7 +694,7 @@
 
                     row.innerHTML = `
                         <input type="checkbox" class="rounded border-slate-600 bg-slate-900 text-indigo-500 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5" ${checked ? 'checked' : ''}>
-                        <span class="font-mono">#${esc(tag)}</span>
+                        <span class="font-mono">${esc(tag)}</span>
                     `;
 
                     const checkbox = row.querySelector('input');
