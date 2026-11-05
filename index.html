@@ -1989,7 +1989,7 @@ function reloadCurrentDayJournal() {
             if (supabaseClient) {
                 const { error } = await supabaseClient.from('account_resets').insert({ account_id, reset_at, cost, invoice_ref, note });
                 if (error) { alert('Ошибка: ' + error.message); return; }
-                closeResetModal();
+                closeResetModal();  
                 fetchAccountsData();
             }
         }
