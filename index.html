@@ -1624,49 +1624,63 @@
                 const gKey = input.getAttribute('data-group');
                 const dropdown = input.nextElementSibling;
 
-                input.onfocus = () => {
-                    if (!dropdown) return;
-                    dropdown.innerHTML = '';
-                    cachedTags.forEach(tag => {
-                        const div = document.createElement('div');
-                        div.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
-                        div.innerText = tag.name;
-                        div.onmousedown = async (e) => {
-                            e.preventDefault();
-                            await addTagToDB(gKey, tag.name);
-                            dropdown.classList.add('hidden');
-                        };
-                        dropdown.appendChild(div);
-                    });
-                    dropdown.classList.remove('hidden');
-                };
+				input.onfocus = () => {
+					if (!dropdown) return;
+					dropdown.innerHTML = '';
+					cachedTags.forEach(tag => {
+						const div = document.createElement('div');
+						div.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
+						div.innerText = tag.name;
+						div.onmousedown = async (e) => {
+							e.preventDefault();
+							e.stopPropagation();
 
-                input.oninput = async (e) => {
-                    const val = e.target.value;
-                    if (val.includes(',')) {
-                        const newTagName = val.replace(/,/g, '').trim();
-                        if (newTagName) await addTagToDB(gKey, newTagName);
-                        e.target.value = '';
-                        dropdown.classList.add('hidden');
-                        return;
-                    }
-                    const q = val.trim().toLowerCase();
-                    const filtered = cachedTags.filter(t => t.name.toLowerCase().includes(q));
-                    dropdown.innerHTML = '';
-                    filtered.forEach(tag => {
-                        const div = document.createElement('div');
-                        div.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
-                        div.innerText = tag.name;
-                        div.onmousedown = async (e) => {
-                            e.preventDefault();
-                            await addTagToDB(gKey, tag.name);
-                            dropdown.classList.add('hidden');
-                        };
-                        dropdown.appendChild(div);
-                    });
-                    dropdown.classList.toggle('hidden', filtered.length === 0);
-                };
+							dropdown.classList.add('hidden');
 
+							await addTagToDB(gKey, tag.name);
+
+							const input = document.querySelector(`.tag-input[data-group="${gKey}"]`);
+							input?.focus({ preventScroll: true });
+						};
+						dropdown.appendChild(div);
+					});
+					dropdown.classList.remove('hidden');
+				};
+				input.oninput = async (e) => {
+					const val = e.target.value;
+
+					if (val.includes(',')) {
+						const newTagName = val.replace(/,/g, '').trim();
+						if (newTagName) await addTagToDB(gKey, newTagName);
+						e.target.value = '';
+						dropdown.classList.add('hidden');
+						return;
+					}
+
+					const q = val.trim().toLowerCase();
+					const filtered = cachedTags.filter(t => t.name.toLowerCase().includes(q));
+
+					dropdown.innerHTML = '';
+					filtered.forEach(tag => {
+						const div = document.createElement('div');
+						div.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
+						div.innerText = tag.name;
+						div.onmousedown = async (e) => {
+							e.preventDefault();
+							e.stopPropagation();
+
+							dropdown.classList.add('hidden');
+
+							await addTagToDB(gKey, tag.name);
+
+							const input = document.querySelector(`.tag-input[data-group="${gKey}"]`);
+							input?.focus({ preventScroll: true });
+						};
+						dropdown.appendChild(div);
+					});
+
+					dropdown.classList.toggle('hidden', filtered.length === 0);
+				};
                 input.onkeydown = async (e) => {
                     if (e.key === 'Enter') {
                         e.preventDefault();
@@ -1751,27 +1765,38 @@
             await supabaseClient.from('trade_tags').upsert({ group_no: Number(groupNo), tag_id: tagRecord.id }, { onConflict: 'group_no,tag_id', ignoreDuplicates: true });
             reloadCurrentDayJournal();
         }
+function reloadCurrentDayJournal() {
+    const scrollY = window.scrollY;
+    const activeInput = document.activeElement instanceof HTMLInputElement
+        ? document.activeElement
+        : null;
+    const activeGroup = activeInput?.getAttribute('data-group');
+    const wasTagInput = activeInput?.classList.contains('tag-input');
 
-        function reloadCurrentDayJournal() {
-            // Сохраняем текущую позицию скролла, чтобы после перерисовки тегов страница не прыгала
-            const scrollY = window.scrollY;
+    if (selectedDayKey) {
+        const dayTrades = allCalendarTrades.filter(
+            t => tradingDay(new Date(t.opened_at)) === selectedDayKey
+        );
 
-            if (selectedDayKey) {
-                const dayTrades = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey);
-                loadAndRenderDayJournal(`Сделки за день ${selectedDayKey}`, dayTrades)
-                    .finally(() => {
-                        // Восстанавливаем позицию после того, как DOM обновился
-                        requestAnimationFrame(() => {
-                            window.scrollTo(0, scrollY);
-                        });
-                    });
-            } else {
-                renderCalendar();
-                requestAnimationFrame(() => {
-                    window.scrollTo(0, scrollY);
-                });
-            }
-        }
+        loadAndRenderDayJournal(
+            `Сделки за день ${selectedDayKey}`,
+            dayTrades
+        ).then(() => {
+            requestAnimationFrame(() => {
+                window.scrollTo(0, scrollY);
+
+                if (wasTagInput && activeGroup) {
+                    const input = document.querySelector(
+                        `.tag-input[data-group="${activeGroup}"]`
+                    );
+                    input?.focus({ preventScroll: true });
+                }
+            });
+        });
+    } else {
+        renderCalendar();
+    }
+}
 
         function renderHeaderControls(pnl) {
             const cardHeader = document.getElementById('dayControlsHeader');
