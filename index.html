@@ -1429,7 +1429,8 @@
             const emptyState = document.getElementById('emptyDayTrades');
 
             if (titleEl) titleEl.innerText = titleText;
-
+			DocumentTagPickerHandler.instances.forEach(p => p.destroy());
+			DocumentTagPickerHandler.instances.clear();
             let dayPnL = 0;
             if (trades) {
                 trades.forEach(t => {
