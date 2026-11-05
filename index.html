@@ -868,23 +868,18 @@ function startSessionClock() {
     setInterval(() => {
         const now = new Date();
 
-        // 1. Получаем текущее время в Чикаго через DateTimeFormat
         const formatter = new Intl.DateTimeFormat('en-US', {
             timeZone: 'America/Chicago',
             hour12: false,
-            year: 'numeric', month: '2-digit', day: '2-digit',
             hour: '2-digit', minute: '2-digit', second: '2-digit'
         });
 
         const parts = formatter.formatToParts(now);
-        const getValue = type => parts.find(p => p.type === type).value;
+        const getValue = type => parseInt(parts.find(p => p.type === type).value, 10);
 
-        const chYear = parseInt(getValue('year'));
-        const chMonth = parseInt(getValue('month')) - 1; // 0-indexed
-        const chDay = parseInt(getValue('day'));
-        const currentHour = parseInt(getValue('hour')) % 24;
-        const currentMin = parseInt(getValue('minute'));
-        const currentSec = parseInt(getValue('second'));
+        const currentHour = getValue('hour') % 24;
+        const currentMin = getValue('minute');
+        const currentSec = getValue('second');
 
         const labelEl = document.getElementById('sessionLabel');
         const timerEl = document.getElementById('sessionCountdown');
@@ -892,38 +887,36 @@ function startSessionClock() {
 
         if (!labelEl || !timerEl || !dotEl) return;
 
-        // 2. В 16:00 CT биржи уходят на 1 час клиринга/перерыва (до 17:00 CT)
-        if (currentHour === 16) {
-            // Считаем сколько секунд осталось до 17:00:00 CT
-            const totalSecLeft = (59 - currentMin) * 60 + (60 - currentSec);
-            const m = String(Math.floor(totalSecLeft / 60)).padStart(2, '0');
-            const s = String(totalSecLeft % 60).padStart(2, '0');
+        // Переводим текущее время Чикаго в общее количество секунд с начала суток
+        const currentTotalSec = currentHour * 3600 + currentMin * 60 + currentSec;
+        
+        // 16:00:00 CT в секундах от начала суток = 16 * 3600 = 57600
+        // 17:00:00 CT в секундах от начала суток = 17 * 3600 = 61200
+        const marketCloseSec = 16 * 3600;
+        const marketOpenSec = 17 * 3600;
+
+        if (currentTotalSec >= marketCloseSec && currentTotalSec < marketOpenSec) {
+            // Идет перерыв (с 16:00 до 17:00 CT)
+            const secLeft = marketOpenSec - currentTotalSec;
+            const h = String(Math.floor(secLeft / 3600)).padStart(2, '0');
+            const m = String(Math.floor((secLeft % 3600) / 60)).padStart(2, '0');
+            const s = String(secLeft % 60).padStart(2, '0');
 
             labelEl.innerText = "Торги закрыты (перерыв)";
-            timerEl.innerText = `00:${m}:${s}`;
+            timerEl.innerText = `${h}:${m}:${s}`;
             timerEl.className = "text-amber-400 font-bold";
             dotEl.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
         } else {
-            // Торги открыты. Считаем время до 16:00:00 CT (закрытия дня)
-            let targetHour = 16;
-            let hoursLeft = targetHour - currentHour - 1;
-            if (hoursLeft < 0) hoursLeft += 24;
-
-            let minsLeft = 59 - currentMin;
-            let secsLeft = 60 - currentSec;
-
-            if (secsLeft === 60) {
-                secsLeft = 0;
-                minsLeft += 1;
-            }
-            if (minsLeft === 60) {
-                minsLeft = 0;
-                hoursLeft += 1;
+            // Торги открыты. Считаем время до 16:00:00 CT
+            let secLeft = marketCloseSec - currentTotalSec;
+            if (secLeft < 0) {
+                // Если уже после 17:00, считаем до 16:00 следующего дня
+                secLeft += 24 * 3600;
             }
 
-            const h = String(hoursLeft).padStart(2, '0');
-            const m = String(minsLeft).padStart(2, '0');
-            const s = String(secsLeft).padStart(2, '0');
+            const h = String(Math.floor(secLeft / 3600)).padStart(2, '0');
+            const m = String(Math.floor((secLeft % 3600) / 60)).padStart(2, '0');
+            const s = String(secLeft % 60).padStart(2, '0');
 
             labelEl.innerText = "Futures close";
             timerEl.innerText = `${h}:${m}:${s}`;
