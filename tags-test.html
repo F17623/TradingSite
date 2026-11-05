@@ -2,25 +2,56 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Тест тегов для журнала</title>
-    <!-- Подключаем Tailwind CSS через CDN для теста -->
+    <title>Тест горизонтального скролла тегов</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Стилизуем полосу прокрутки для плавной навигации */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
 </head>
-<body class="bg-slate-900 text-slate-100 p-10 flex justify-center">
+<body class="bg-slate-900 text-slate-100 p-10 flex flex-col items-center">
 
-    <div class="w-full max-w-md bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
-        <h2 class="text-lg font-semibold mb-4 text-slate-200">Тестирование ввода тегов</h2>
-        
-        <!-- Контейнер для тегов и инпута -->
-        <div id="tag-container" class="flex flex-wrap gap-2 items-center bg-slate-900 border border-slate-700 rounded-lg p-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 cursor-text" onclick="document.getElementById('tag-input').focus()">
-            <!-- Сюда JS динамически добавит бейджи -->
-            <input type="text" id="tag-input" placeholder="Введите тег и нажмите Enter..." class="bg-transparent outline-none flex-grow text-sm text-slate-200 placeholder-slate-500 px-1 py-1 min-w-[140px]">
+    <div class="w-full max-w-xl bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold text-slate-200">Теги сделки (Горизонтальный скролл)</h2>
+            <button onclick="addPresetTags()" class="text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded border border-slate-600 transition-colors">
+                + Наполнить (~20 тегов)
+            </button>
         </div>
-        <p class="text-xs text-slate-500 mt-2">Используйте Enter или запятую для добавления, Backspace для удаления.</p>
+        
+        <!-- Контейнер: flex-nowrap + overflow-x-auto держат всё в 1 строку -->
+        <div id="tag-container" 
+             class="custom-scrollbar flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-lg p-2.5 overflow-x-auto whitespace-nowrap focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 cursor-text" 
+             onclick="document.getElementById('tag-input').focus()">
+            
+            <!-- Динамические теги будут вставляться перед инпутом -->
+            
+            <input type="text" 
+                   id="tag-input" 
+                   placeholder="+ тег..." 
+                   class="bg-transparent outline-none text-sm text-slate-200 placeholder-slate-500 px-1 py-0.5 w-24 shrink-0">
+        </div>
+        
+        <p class="text-xs text-slate-500 mt-2">Прокручивайте колесиком мыши / свайпом вбок или зажмите Shift + Колесико.</p>
 
-        <!-- Для проверки того, что поле готово улететь в базу (Supabase) -->
+        <!-- Проверка массива -->
         <div class="mt-6">
-            <label class="block text-xs font-medium text-slate-400 mb-1">Данные для отправки в БД:</label>
+            <div class="flex justify-between items-center mb-1">
+                <label class="text-xs font-medium text-slate-400">В базе Supabase (всего: <span id="tag-count">0</span>):</label>
+            </div>
             <input type="text" id="tag-hidden-output" readonly class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-400 font-mono">
         </div>
     </div>
@@ -29,34 +60,39 @@
         const tagContainer = document.getElementById('tag-container');
         const tagInput = document.getElementById('tag-input');
         const hiddenOutput = document.getElementById('tag-hidden-output');
+        const tagCount = document.getElementById('tag-count');
 
-        // Массив для хранения тегов
-        let tags = ['ema_bounce', 'trend_day']; // С предзаполненными для примера
+        // Стартовый набор тегов
+        let tags = ['ema_bounce', 'trend_day', 'mes_micro', 'keltner_breakout', 'vwap_hold', 'morning_session'];
 
         function renderTags() {
-            // Удаляем старые бейджи, оставляя сам input на месте
             tagContainer.querySelectorAll('.tag-badge').forEach(el => el.remove());
 
-            // Создаем элементы для каждого тега и вставляем их ПЕРЕД инпутом
             tags.forEach((tag, index) => {
                 const badge = document.createElement('span');
-                badge.className = "tag-badge inline-flex items-center gap-1.5 bg-blue-900/60 text-blue-300 text-xs px-2.5 py-1 rounded-md border border-blue-700/50 font-medium animate-fadeIn";
+                // shrink-0 не дает тегам сжиматься по ширине
+                badge.className = "tag-badge shrink-0 inline-flex items-center gap-1.5 bg-blue-950/80 text-blue-300 text-xs px-2.5 py-1 rounded-md border border-blue-700/50 font-medium";
                 badge.innerHTML = `
-                    <span>${tag}</span>
-                    <button type="button" onclick="removeTag(${index})" class="text-blue-400 hover:text-white transition-colors">&times;</button>
+                    <span>#${tag}</span>
+                    <button type="button" onclick="removeTag(${index})" class="text-blue-400 hover:text-white transition-colors text-sm font-bold">&times;</button>
                 `;
                 tagContainer.insertBefore(badge, tagInput);
             });
 
-            // Синхронизируем с «скрытым полем» (или тем, что пойдет в Supabase)
             hiddenOutput.value = JSON.stringify(tags);
+            tagCount.textContent = tags.length;
         }
 
         function addTag(text) {
-            const cleanText = text.trim().toLowerCase().replace(/[^a-z0-9-_]/g, ''); // Нормализация тега под БД
+            const cleanText = text.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
             if (cleanText && !tags.includes(cleanText)) {
                 tags.push(cleanText);
                 renderTags();
+                
+                // Автоскролл вправо при добавлении нового тега
+                setTimeout(() => {
+                    tagContainer.scrollLeft = tagContainer.scrollWidth;
+                }, 50);
             }
             tagInput.value = '';
         }
@@ -66,27 +102,47 @@
             renderTags();
         }
 
-        // Обработка клавиш в инпуте
+        // Заполнение 20 тегами по кнопке
+        window.addPresetTags = function() {
+            const presets = [
+                'es_futures', 'mnq_scalp', 'scaled_entry', 'stop_moved', 'fomo_entry', 
+                'high_volatility', 'news_impulse', 'target_hit', 'chop_day', 'level_retest',
+                'rule_break', 'perfect_execution', 'revenge_trade', 'early_exit'
+            ];
+            presets.forEach(t => {
+                if (!tags.includes(t)) tags.push(t);
+            });
+            renderTags();
+            setTimeout(() => {
+                tagContainer.scrollLeft = tagContainer.scrollWidth;
+            }, 50);
+        }
+
         tagInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ',') {
                 e.preventDefault();
                 addTag(tagInput.value);
             } else if (e.key === 'Backspace' && tagInput.value === '' && tags.length > 0) {
-                // Удаляем последний тег по Backspace, если инпут пустой
                 tags.pop();
                 renderTags();
             }
         });
 
-        // Добавление по потере фокуса (опционально)
         tagInput.addEventListener('blur', () => {
             if (tagInput.value.trim()) {
                 addTag(tagInput.value);
             }
         });
 
-        // Первичный рендер
-        renderOutput = renderTags();
+        // Включаем горизонтальную прокрутку колесиком мыши (без необходимости зажимать Shift)
+        tagContainer.addEventListener('wheel', (e) => {
+            if (e.deltaY !== 0) {
+                e.preventDefault();
+                tagContainer.scrollLeft += e.deltaY;
+            }
+        });
+
+        renderTags();
     </script>
 </body>
 </html>
