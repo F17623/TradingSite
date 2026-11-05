@@ -28,18 +28,20 @@
 
     <script>
         // Глобальный список автозаполнения (храним в localStorage браузера)
-        function getSavedHistoryTags() {
-            const saved = localStorage.getItem('trading_journal_tag_history');
-            return saved ? JSON.parse(saved) : ['500t', '5m_at_mid', 'tick_25%', 'tick_below_mid', 'tick_trend_down', 'ema_bounce', 'trend_day', 'breakout'];
-        }
+		// Получение истории тегов из localStorage
+		function getSavedHistoryTags() {
+			const saved = localStorage.getItem('trading_journal_tag_history');
+			// Если пусто, возвращаем базовый набор, чтобы было с чем работать
+			return saved ? JSON.parse(saved) : ['500t', '5m_at_mid', 'tick_25%', 'tick_below_mid', 'tick_trend_down', 'ema_bounce', 'trend_day', 'breakout'];
+		}
 
-        function saveHistoryTag(tag) {
-            let history = getSavedHistoryTags();
-            if (!history.includes(tag)) {
-                history.push(tag);
-                localStorage.setItem('trading_journal_tag_history', JSON.stringify(history));
-            }
-        }
+		function saveHistoryTag(tag) {
+			let history = getSavedHistoryTags();
+			if (!history.includes(tag)) {
+				history.push(tag);
+				localStorage.setItem('trading_journal_tag_history', JSON.stringify(history));
+			}
+		}
 
         // Демо-данные для карточек
         let tradesData = [
@@ -120,9 +122,13 @@
             }
 
             // Рендер выпадающего списка подсказок
+// Рендер выпадающего списка подсказок
             function showDropdown(filter = '') {
                 const history = getSavedHistoryTags();
-                const filtered = history.filter(t => t.includes(filter.toLowerCase()) && !trade.tags.includes(t));
+                // Фильтруем по введенному тексту и убираем те, что уже стоят в ЭТОЙ сделке
+                const filtered = history.filter(t => 
+                    t.includes(filter.toLowerCase().trim()) && !trade.tags.includes(t)
+                );
 
                 if (filtered.length === 0) {
                     dropdown.classList.add('hidden');
@@ -132,10 +138,10 @@
                 dropdown.innerHTML = '';
                 filtered.forEach(item => {
                     const div = document.createElement('div');
-                    div.className = "px-3 py-1.5 text-xs text-slate-300 hover:bg-blue-600 hover:text-white cursor-pointer transition-colors";
-                    div.textContent = item;
+                    div.className = "px-3 py-2 text-xs text-slate-300 hover:bg-blue-600 hover:text-white cursor-pointer transition-colors border-b border-slate-800/50 last:border-none";
+                    div.textContent = '#' + item;
                     div.onmousedown = (e) => {
-                        e.preventDefault(); // чтобы инпут не терял фокус раньше времени
+                        e.preventDefault(); // Защита от потери фокуса до клика
                         addTagToTrade(tradeIndex, item);
                     };
                     dropdown.appendChild(div);
@@ -143,6 +149,20 @@
 
                 dropdown.classList.remove('hidden');
             }
+
+            // Показываем все доступные сохраненные теги при фокусе или клике
+            input.addEventListener('focus', () => {
+                showDropdown(input.value);
+            });
+
+            input.addEventListener('input', (e) => {
+                showDropdown(e.target.value);
+            });
+
+            input.addEventListener('blur', () => {
+                // Небольшая задержка, чтобы успел сработать клик по выпадающему списку
+                setTimeout(() => dropdown.classList.add('hidden'), 250);
+            });
 
             function addTagToTrade(tIdx, val) {
                 const clean = val.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
