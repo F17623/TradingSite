@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Тест тегов для журнала</title>
+    <!-- Подключаем Tailwind CSS через CDN для теста -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 p-10 flex justify-center">
+
+    <div class="w-full max-w-md bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+        <h2 class="text-lg font-semibold mb-4 text-slate-200">Тестирование ввода тегов</h2>
+        
+        <!-- Контейнер для тегов и инпута -->
+        <div id="tag-container" class="flex flex-wrap gap-2 items-center bg-slate-900 border border-slate-700 rounded-lg p-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 cursor-text" onclick="document.getElementById('tag-input').focus()">
+            <!-- Сюда JS динамически добавит бейджи -->
+            <input type="text" id="tag-input" placeholder="Введите тег и нажмите Enter..." class="bg-transparent outline-none flex-grow text-sm text-slate-200 placeholder-slate-500 px-1 py-1 min-w-[140px]">
+        </div>
+        <p class="text-xs text-slate-500 mt-2">Используйте Enter или запятую для добавления, Backspace для удаления.</p>
+
+        <!-- Для проверки того, что поле готово улететь в базу (Supabase) -->
+        <div class="mt-6">
+            <label class="block text-xs font-medium text-slate-400 mb-1">Данные для отправки в БД:</label>
+            <input type="text" id="tag-hidden-output" readonly class="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-slate-400 font-mono">
+        </div>
+    </div>
+
+    <script>
+        const tagContainer = document.getElementById('tag-container');
+        const tagInput = document.getElementById('tag-input');
+        const hiddenOutput = document.getElementById('tag-hidden-output');
+
+        // Массив для хранения тегов
+        let tags = ['ema_bounce', 'trend_day']; // С предзаполненными для примера
+
+        function renderTags() {
+            // Удаляем старые бейджи, оставляя сам input на месте
+            tagContainer.querySelectorAll('.tag-badge').forEach(el => el.remove());
+
+            // Создаем элементы для каждого тега и вставляем их ПЕРЕД инпутом
+            tags.forEach((tag, index) => {
+                const badge = document.createElement('span');
+                badge.className = "tag-badge inline-flex items-center gap-1.5 bg-blue-900/60 text-blue-300 text-xs px-2.5 py-1 rounded-md border border-blue-700/50 font-medium animate-fadeIn";
+                badge.innerHTML = `
+                    <span>${tag}</span>
+                    <button type="button" onclick="removeTag(${index})" class="text-blue-400 hover:text-white transition-colors">&times;</button>
+                `;
+                tagContainer.insertBefore(badge, tagInput);
+            });
+
+            // Синхронизируем с «скрытым полем» (или тем, что пойдет в Supabase)
+            hiddenOutput.value = JSON.stringify(tags);
+        }
+
+        function addTag(text) {
+            const cleanText = text.trim().toLowerCase().replace(/[^a-z0-9-_]/g, ''); // Нормализация тега под БД
+            if (cleanText && !tags.includes(cleanText)) {
+                tags.push(cleanText);
+                renderTags();
+            }
+            tagInput.value = '';
+        }
+
+        window.removeTag = function(index) {
+            tags.splice(index, 1);
+            renderTags();
+        }
+
+        // Обработка клавиш в инпуте
+        tagInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ',') {
+                e.preventDefault();
+                addTag(tagInput.value);
+            } else if (e.key === 'Backspace' && tagInput.value === '' && tags.length > 0) {
+                // Удаляем последний тег по Backspace, если инпут пустой
+                tags.pop();
+                renderTags();
+            }
+        });
+
+        // Добавление по потере фокуса (опционально)
+        tagInput.addEventListener('blur', () => {
+            if (tagInput.value.trim()) {
+                addTag(tagInput.value);
+            }
+        });
+
+        // Первичный рендер
+        renderOutput = renderTags();
+    </script>
+</body>
+</html>
