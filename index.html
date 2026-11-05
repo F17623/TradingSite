@@ -567,8 +567,33 @@
         // ==========================================
         const TagHistory = {
             get() {
-                // Возвращает актуальный массив имён тегов напрямую из базы Supabase
                 return cachedTags.map(t => t.name);
+            }
+        };
+
+        // ЕДИНЫЙ ГЛОБАЛЬНЫЙ МЕНЕДЖЕР СЛУШАТЕЛЯ КЛИКОВ ДЛЯ ВСЕХ TAGPICKER
+        const DocumentTagPickerHandler = {
+            instances: new Set(),
+            isInitialized: false,
+
+            register(instance) {
+                this.instances.add(instance);
+                if (!this.isInitialized) {
+                    document.addEventListener('click', this.handleGlobalClick);
+                    this.isInitialized = true;
+                }
+            },
+
+            unregister(instance) {
+                this.instances.delete(instance);
+            },
+
+            handleGlobalClick(e) {
+                DocumentTagPickerHandler.instances.forEach(picker => {
+                    if (picker.inputWrapper && !picker.inputWrapper.contains(e.target)) {
+                        picker.closeDropdown();
+                    }
+                });
             }
         };
 
@@ -592,6 +617,12 @@
                 this.initUI();
                 this.bindEvents();
                 this.renderBadges();
+
+                DocumentTagPickerHandler.register(this);
+            }
+
+            destroy() {
+                DocumentTagPickerHandler.unregister(this);
             }
 
             initUI() {
@@ -749,12 +780,6 @@
                         this.input.blur();
                     }
                 };
-
-                document.addEventListener('click', (e) => {
-                    if (!this.inputWrapper.contains(e.target)) {
-                        this.closeDropdown();
-                    }
-                });
 
                 this.badgesContainer.onwheel = (e) => {
                     if (e.deltaY !== 0) {
@@ -1669,30 +1694,64 @@
         async function syncTagsWithDB(groupNo, updatedTagNames) {
             if (!supabaseClient) return;
 
-            // Убеждаемся, что запись в trade_journal существует
-            await supabaseClient.from('trade_journal').upsert({ group_no: Number(groupNo) }, { onConflict: 'group_no', ignoreDuplicates: true });
+            const groupNum = Number(groupNo);
 
-            // Получаем список ID всех тегов
-            const tagIds = [];
-            for (const tagName of updatedTagNames) {
-                let { data: tagRecord } = await supabaseClient.from('tags').select('id').eq('name', tagName).single();
-                if (!tagRecord) {
-                    const { data: newTag } = await supabaseClient.from('tags').insert({ name: tagName }).select('id').single();
-                    if (newTag) tagRecord = newTag;
+            // Убеждаемся, что запись в trade_journal существует
+            await supabaseClient.from('trade_journal').upsert({ group_no: groupNum }, { onConflict: 'group_no', ignoreDuplicates: true });
+
+            // 1. Находим существующие ID тегов или создаём недостающие пакетом
+            const targetTagMap = new Map(); // tagNameLower -> { id, name }
+
+            if (updatedTagNames.length > 0) {
+                // Ищем теги из глобального кэша или базы
+                const missingTagNames = [];
+                updatedTagNames.forEach(name => {
+                    const found = cachedTags.find(t => t.name.toLowerCase() === name.toLowerCase());
+                    if (found) {
+                        targetTagMap.set(name.toLowerCase(), found);
+                    } else {
+                        missingTagNames.push(name);
+                    }
+                });
+
+                // Если есть теги, которых нет в кэше, проверяем/создаем в Supabase
+                if (missingTagNames.length > 0) {
+                    const { data: existingDBTags } = await supabaseClient.from('tags').select('id, name').in('name', missingTagNames);
+                    if (existingDBTags) {
+                        existingDBTags.forEach(t => targetTagMap.set(t.name.toLowerCase(), t));
+                    }
+
+                    const toInsert = missingTagNames.filter(n => !targetTagMap.has(n.toLowerCase())).map(n => ({ name: n }));
+                    if (toInsert.length > 0) {
+                        const { data: insertedTags } = await supabaseClient.from('tags').insert(toInsert).select('id, name');
+                        if (insertedTags) {
+                            insertedTags.forEach(t => targetTagMap.set(t.name.toLowerCase(), t));
+                        }
+                    }
                 }
-                if (tagRecord) tagIds.push(tagRecord.id);
             }
 
-            // Удаляем старые связи для этой сделки
-            await supabaseClient.from('trade_tags').delete().eq('group_no', Number(groupNo));
+            // 2. Получаем текущие привязанные теги из trade_tags для сделки
+            const { data: currentTradeTags } = await supabaseClient.from('trade_tags').select('tag_id').eq('group_no', groupNum);
+            const currentTagIds = new Set((currentTradeTags || []).map(tt => tt.tag_id));
 
-            // Записываем обновленный набор связей
-            if (tagIds.length > 0) {
-                const insertRows = tagIds.map(tid => ({ group_no: Number(groupNo), tag_id: tid }));
+            const targetTagIds = new Set(Array.from(targetTagMap.values()).map(t => t.id));
+
+            // 3. Считаем DIFF (Разницу)
+            const idsToDelete = [...currentTagIds].filter(id => !targetTagIds.has(id));
+            const idsToAdd = [...targetTagIds].filter(id => !currentTagIds.has(id));
+
+            // 4. Применяем минимально необходимые точечные операции
+            if (idsToDelete.length > 0) {
+                await supabaseClient.from('trade_tags').delete().eq('group_no', groupNum).in('tag_id', idsToDelete);
+            }
+
+            if (idsToAdd.length > 0) {
+                const insertRows = idsToAdd.map(tid => ({ group_no: groupNum, tag_id: tid }));
                 await supabaseClient.from('trade_tags').insert(insertRows);
             }
 
-            // Обновляем локальный кэш тегов из базы
+            // Обновляем глобальный кэш тегов из базы
             await fetchTagsList();
         }
 
