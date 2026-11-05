@@ -24,6 +24,12 @@
         ::-webkit-scrollbar-track { background: #090d16; }
         ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #334155; }
+        
+        .custom-scrollbar::-webkit-scrollbar { height: 4px; width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.4); border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+
         .pb-safe { padding-bottom: env(safe-area-inset-bottom, 1rem); }
         .pt-safe { padding-top: env(safe-area-inset-top, 1rem); }
         @keyframes subtle-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
@@ -557,6 +563,225 @@
         // Защита от гонки асинхронного рендера дня
         let currentRenderToken = 0;
 
+        // ==========================================
+        // МЕНЕДЖЕР ИСТОРИИ ТЕГОВ И TAGPICKER
+        // ==========================================
+        const TagHistory = {
+            storageKey: 'trading_journal_tag_history',
+            
+            get() {
+                const saved = localStorage.getItem(this.storageKey);
+                return saved ? JSON.parse(saved) : [
+                    '500t', '5m_at_mid', 'tick_25%', 'tick_below_mid', 'tick_trend_down',
+                    'ema_bounce', 'trend_day', 'breakout', '3000t', 'chop_day',
+                    'fvg', 'ob', 'liquidity_sweep', 'asia', 'london', 'ny_open'
+                ];
+            },
+
+            add(tag) {
+                let history = this.get();
+                const exists = history.some(t => t.toLowerCase() === tag.toLowerCase());
+                if (!exists) {
+                    history.push(tag);
+                    localStorage.setItem(this.storageKey, JSON.stringify(history));
+                }
+            }
+        };
+
+        class TagPicker {
+            constructor({ container, selectedTags = [], onChange }) {
+                if (typeof container === 'string') {
+                    const id = container.startsWith('#') ? container.slice(1) : container;
+                    this.container = document.getElementById(id);
+                } else {
+                    this.container = container;
+                }
+
+                if (!this.container) {
+                    console.error('TagPicker: контейнер не найден', container);
+                    return;
+                }
+
+                this.selectedTags = [...selectedTags];
+                this.onChange = onChange || (() => {});
+                
+                this.initUI();
+                this.bindEvents();
+                this.renderBadges();
+            }
+
+            initUI() {
+                this.container.className = "flex items-center gap-3 bg-slate-950/60 border border-slate-800/80 rounded-lg p-2.5 w-full";
+                this.container.innerHTML = `
+                    <span class="text-xs font-bold text-slate-400 tracking-wider shrink-0">ТЕГИ:</span>
+                    <div class="badges-container custom-scrollbar flex items-center gap-2 overflow-x-auto whitespace-nowrap flex-grow py-0.5 min-w-0"></div>
+                    <div class="relative shrink-0 input-wrapper">
+                        <div class="flex items-center gap-1.5">
+                            <input type="text"
+                                   placeholder="+ новый..."
+                                   autocomplete="off"
+                                   class="tag-input bg-slate-900/90 border border-slate-700/60 hover:border-slate-600 focus:border-indigo-500 rounded px-2.5 py-1 text-xs text-slate-200 placeholder-slate-500 outline-none w-28 transition-colors">
+                            <button type="button"
+                                    class="toggle-btn shrink-0 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 font-medium transition-colors">
+                                ▼
+                            </button>
+                        </div>
+                        <div class="dropdown-menu hidden absolute right-0 top-full mt-1.5 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+                            <div class="px-3 py-2 border-b border-slate-800 text-[10px] uppercase tracking-wider text-slate-500 font-semibold">
+                                Выберите теги
+                            </div>
+                            <div class="dropdown-list max-h-52 overflow-y-auto custom-scrollbar py-1"></div>
+                            <div class="px-3 py-2 border-t border-slate-800 bg-slate-950/50 text-[10px] text-slate-500">
+                                Enter — добавить новый тег
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                this.badgesContainer = this.container.querySelector('.badges-container');
+                this.inputWrapper = this.container.querySelector('.input-wrapper');
+                this.input = this.container.querySelector('.tag-input');
+                this.toggleBtn = this.container.querySelector('.toggle-btn');
+                this.dropdown = this.container.querySelector('.dropdown-menu');
+                this.dropdownList = this.container.querySelector('.dropdown-list');
+            }
+
+            isSelected(tagName) {
+                return this.selectedTags.some(t => t.toLowerCase() === tagName.toLowerCase());
+            }
+
+            toggleTag(tagName) {
+                const idx = this.selectedTags.findIndex(t => t.toLowerCase() === tagName.toLowerCase());
+                if (idx >= 0) {
+                    this.selectedTags.splice(idx, 1);
+                } else {
+                    this.selectedTags.push(tagName);
+                    TagHistory.add(tagName);
+                }
+                this.renderBadges();
+                this.renderCheckboxList(this.input.value);
+                this.onChange(this.selectedTags);
+                setTimeout(() => { this.badgesContainer.scrollLeft = this.badgesContainer.scrollWidth; }, 20);
+            }
+
+            renderBadges() {
+                this.badgesContainer.innerHTML = '';
+                this.selectedTags.forEach((tag) => {
+                    const badge = document.createElement('span');
+                    badge.className = "shrink-0 inline-flex items-center gap-1.5 bg-indigo-950/90 text-indigo-300 text-xs px-2.5 py-1 rounded-md border border-indigo-800/60 font-medium";
+                    badge.innerHTML = `
+                        <span>${esc(tag)}</span>
+                        <button type="button" class="text-indigo-400 hover:text-white transition-colors font-bold leading-none">&times;</button>
+                    `;
+                    badge.querySelector('button').onclick = (e) => {
+                        e.stopPropagation();
+                        this.selectedTags = this.selectedTags.filter(t => t.toLowerCase() !== tag.toLowerCase());
+                        this.renderBadges();
+                        this.renderCheckboxList(this.input.value);
+                        this.onChange(this.selectedTags);
+                    };
+                    this.badgesContainer.appendChild(badge);
+                });
+            }
+
+            renderCheckboxList(filter = '') {
+                const history = TagHistory.get();
+                const q = (filter || '').toLowerCase().trim();
+                const allTags = [...new Set([...history, ...this.selectedTags])];
+
+                const filtered = allTags.filter(t => !q || t.toLowerCase().includes(q));
+
+                filtered.sort((a, b) => {
+                    const aSel = this.isSelected(a) ? 0 : 1;
+                    const bSel = this.isSelected(b) ? 0 : 1;
+                    return aSel !== bSel ? aSel - bSel : a.localeCompare(b);
+                });
+
+                this.dropdownList.innerHTML = '';
+
+                if (filtered.length === 0) {
+                    this.dropdownList.innerHTML = `<div class="px-3 py-3 text-xs text-slate-500 text-center">Нет подходящих тегов</div>`;
+                    return;
+                }
+
+                filtered.forEach(tag => {
+                    const checked = this.isSelected(tag);
+                    const row = document.createElement('label');
+                    row.className = `flex items-center gap-2.5 px-3 py-2 text-xs cursor-pointer hover:bg-slate-800/80 transition-colors ${checked ? "text-indigo-300" : "text-slate-300"}`;
+
+                    row.innerHTML = `
+                        <input type="checkbox" class="rounded border-slate-600 bg-slate-900 text-indigo-500 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5" ${checked ? 'checked' : ''}>
+                        <span class="font-mono">#${esc(tag)}</span>
+                    `;
+
+                    const checkbox = row.querySelector('input');
+                    checkbox.onchange = (e) => {
+                        e.stopPropagation();
+                        this.toggleTag(tag);
+                    };
+
+                    row.onclick = (e) => {
+                        if (e.target === checkbox) return;
+                        e.preventDefault();
+                        checkbox.checked = !checkbox.checked;
+                        this.toggleTag(tag);
+                    };
+
+                    this.dropdownList.appendChild(row);
+                });
+            }
+
+            openDropdown() {
+                this.renderCheckboxList(this.input.value);
+                this.dropdown.classList.remove('hidden');
+            }
+
+            closeDropdown() {
+                this.dropdown.classList.add('hidden');
+            }
+
+            bindEvents() {
+                this.toggleBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    this.dropdown.classList.contains('hidden') ? this.openDropdown() : this.closeDropdown();
+                };
+
+                this.input.onfocus = () => this.openDropdown();
+                this.input.oninput = () => {
+                    this.renderCheckboxList(this.input.value);
+                    this.dropdown.classList.remove('hidden');
+                };
+
+                this.input.onkeydown = (e) => {
+                    if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault();
+                        const val = this.input.value.trim().replace(/[^a-zA-Z0-9%_\-]/g, '');
+                        if (val && !this.isSelected(val)) {
+                            this.toggleTag(val);
+                        }
+                        this.input.value = '';
+                        this.renderCheckboxList('');
+                    } else if (e.key === 'Escape') {
+                        this.closeDropdown();
+                        this.input.blur();
+                    }
+                };
+
+                document.addEventListener('click', (e) => {
+                    if (!this.inputWrapper.contains(e.target)) {
+                        this.closeDropdown();
+                    }
+                });
+
+                this.badgesContainer.onwheel = (e) => {
+                    if (e.deltaY !== 0) {
+                        e.preventDefault();
+                        this.badgesContainer.scrollLeft += e.deltaY;
+                    }
+                };
+            }
+        }
+
         function tradingDay(date) {
             const s = date.toLocaleString('sv-SE', { timeZone: 'America/Chicago' });
             const d = new Date(s.replace(' ', 'T') + 'Z');
@@ -1019,7 +1244,6 @@
                 const cashClass = !isClosed ? 'text-slate-500' : (cash > 0 ? 'text-emerald-400' : (cash < 0 ? 'text-rose-400' : 'text-slate-400'));
                 const cashFormatted = !isClosed ? '—' : (cash >= 0 ? '+$' : '-$') + Math.abs(cash).toFixed(2);
                 
-                // РАСЧЕТ ТИКОВ
                 const ticksVal = t.ticks !== null && t.ticks !== undefined ? Number(t.ticks) : null;
                 const ticksClass = !isClosed || ticksVal === null ? 'text-slate-500' : (ticksVal > 0 ? 'text-emerald-400' : (ticksVal < 0 ? 'text-rose-400' : 'text-slate-400'));
                 const ticksFormatted = !isClosed || ticksVal === null ? '—' : (ticksVal >= 0 ? `+${ticksVal} t` : `${ticksVal} t`);
@@ -1339,14 +1563,6 @@
 
                 const cardDiv = document.createElement('div');
                 cardDiv.className = "bg-slate-950/50 border border-slate-800 rounded-2xl p-4 space-y-3";
-                
-                let tagsHtml = '';
-                const currentTags = tagsDBData[g.group_no] || [];
-                currentTags.forEach(tag => {
-                    tagsHtml += `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 text-xs font-mono">
-                        ${esc(tag.name)} <button type="button" data-group="${g.group_no}" data-tagid="${tag.id}" class="remove-tag-btn hover:text-white">&times;</button>
-                    </span>`;
-                });
 
                 let snapshotHtml = '';
                 if (showSnapshots) {
@@ -1401,6 +1617,8 @@
 
                 let accountsListStr = g.rows.map(r => `${esc(r.account_name)} (${r.net_now > r.max_qty ? r.net_now : r.max_qty} контр.)`).join(', ');
                 const currentNote = notesDBData[g.group_no] || '';
+                const currentTagObjects = tagsDBData[g.group_no] || [];
+                const currentTagNames = currentTagObjects.map(t => t.name);
 
                 cardDiv.innerHTML = `
                     <div class="flex items-center justify-between border-b border-slate-800/60 pb-3">
@@ -1426,21 +1644,8 @@
                         </div>
                     </div>
 
-                    <!-- ТЕГИ -->
-                    <div class="flex flex-wrap items-center gap-2 pt-1">
-                        <span class="text-[11px] font-semibold text-slate-400 uppercase">Теги:</span>
-                        <div class="flex flex-wrap items-center gap-1.5">
-                            ${tagsHtml}
-                        </div>
-                        <div class="relative inline-block">
-                            <input type="text" data-group="${g.group_no}" placeholder="+ добавить тег..." 
-                                autocomplete="off"
-                                data-lpignore="true"
-                                class="tag-input bg-slate-900 border border-slate-800 rounded-lg px-3 py-1 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 w-48">
-                            
-                            <div class="tag-dropdown hidden absolute left-0 mt-1 w-52 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl z-20 max-h-40 overflow-y-auto"></div>
-                        </div>
-                    </div>
+                    <!-- ТЕГИ (УНИВЕРСАЛЬНЫЙ TAGPICKER) -->
+                    <div id="tag-picker-${g.group_no}"></div>
 
                     <!-- ЗАМЕТКА -->
                     <div class="pt-1">
@@ -1464,10 +1669,48 @@
                     ${snapshotHtml}
                 `;
                 container.appendChild(cardDiv);
+
+                // Инициализация TagPicker для этой сделки
+                new TagPicker({
+                    container: `#tag-picker-${g.group_no}`,
+                    selectedTags: currentTagNames,
+                    onChange: async (updatedTagNames) => {
+                        await syncTagsWithDB(g.group_no, updatedTagNames);
+                    }
+                });
             }
 
             bindJournalEvents();
             lucide.createIcons();
+        }
+
+        async function syncTagsWithDB(groupNo, updatedTagNames) {
+            if (!supabaseClient) return;
+
+            // Убеждаемся, что запись в trade_journal существует
+            await supabaseClient.from('trade_journal').upsert({ group_no: Number(groupNo) }, { onConflict: 'group_no', ignoreDuplicates: true });
+
+            // Получаем список ID всех новых тегов (создаём их при необходимости)
+            const tagIds = [];
+            for (const tagName of updatedTagNames) {
+                let { data: tagRecord } = await supabaseClient.from('tags').select('id').eq('name', tagName).single();
+                if (!tagRecord) {
+                    const { data: newTag } = await supabaseClient.from('tags').insert({ name: tagName }).select('id').single();
+                    if (newTag) tagRecord = newTag;
+                }
+                if (tagRecord) tagIds.push(tagRecord.id);
+            }
+
+            // Удаляем старые теги для этой сделки
+            await supabaseClient.from('trade_tags').delete().eq('group_no', Number(groupNo));
+
+            // Записываем обновленный набор тегов
+            if (tagIds.length > 0) {
+                const insertRows = tagIds.map(tid => ({ group_no: Number(groupNo), tag_id: tid }));
+                await supabaseClient.from('trade_tags').insert(insertRows);
+            }
+
+            await fetchTagsList();
         }
 
         async function fetchFreeSnapshots() {
@@ -1609,95 +1852,6 @@
                 };
             });
 
-            document.querySelectorAll('.remove-tag-btn').forEach(btn => {
-                btn.onclick = async () => {
-                    const groupNo = btn.getAttribute('data-group');
-                    const tagId = btn.getAttribute('data-tagid');
-                    if (supabaseClient) {
-                        await supabaseClient.from('trade_tags').delete().match({ group_no: groupNo, tag_id: tagId });
-                        reloadCurrentDayJournal();
-                    }
-                };
-            });
-
-            document.querySelectorAll('.tag-input').forEach(input => {
-                const gKey = input.getAttribute('data-group');
-                const dropdown = input.nextElementSibling;
-
-				input.onfocus = () => {
-					if (!dropdown) return;
-					dropdown.innerHTML = '';
-					cachedTags.forEach(tag => {
-						const div = document.createElement('div');
-						div.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
-						div.innerText = tag.name;
-						div.onmousedown = async (e) => {
-							e.preventDefault();
-							e.stopPropagation();
-
-							dropdown.classList.add('hidden');
-
-							await addTagToDB(gKey, tag.name);
-
-							const input = document.querySelector(`.tag-input[data-group="${gKey}"]`);
-							input?.focus({ preventScroll: true });
-						};
-						dropdown.appendChild(div);
-					});
-					dropdown.classList.remove('hidden');
-				};
-				input.oninput = async (e) => {
-					const val = e.target.value;
-
-					if (val.includes(',')) {
-						const newTagName = val.replace(/,/g, '').trim();
-						if (newTagName) await addTagToDB(gKey, newTagName);
-						e.target.value = '';
-						dropdown.classList.add('hidden');
-						return;
-					}
-
-					const q = val.trim().toLowerCase();
-					const filtered = cachedTags.filter(t => t.name.toLowerCase().includes(q));
-
-					dropdown.innerHTML = '';
-					filtered.forEach(tag => {
-						const div = document.createElement('div');
-						div.className = "px-3 py-2 text-xs text-slate-300 hover:bg-slate-800 cursor-pointer font-mono";
-						div.innerText = tag.name;
-						div.onmousedown = async (e) => {
-							e.preventDefault();
-							e.stopPropagation();
-
-							dropdown.classList.add('hidden');
-
-							await addTagToDB(gKey, tag.name);
-
-							const input = document.querySelector(`.tag-input[data-group="${gKey}"]`);
-							input?.focus({ preventScroll: true });
-						};
-						dropdown.appendChild(div);
-					});
-
-					dropdown.classList.toggle('hidden', filtered.length === 0);
-				};
-                input.onkeydown = async (e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const newTagName = input.value.replace(/,/g, '').trim();
-                        if (newTagName) {
-                            await addTagToDB(gKey, newTagName);
-                            input.value = '';
-                            dropdown.classList.add('hidden');
-                        }
-                    }
-                };
-
-                input.onblur = () => {
-                    setTimeout(() => dropdown.classList.add('hidden'), 200);
-                };
-            });
-
             document.querySelectorAll('.shot-file-input').forEach(fileInput => {
                 fileInput.onchange = async (e) => {
                     const file = e.target.files[0];
@@ -1751,52 +1905,26 @@
             });
         }
 
-        async function addTagToDB(groupNo, tagName) {
-            if (!supabaseClient) return;
-            await supabaseClient.from('trade_journal').upsert({ group_no: Number(groupNo) }, { onConflict: 'group_no', ignoreDuplicates: true });
+        function reloadCurrentDayJournal() {
+            const scrollY = window.scrollY;
 
-            let { data: tagRecord } = await supabaseClient.from('tags').select('id').eq('name', tagName).single();
-            if (!tagRecord) {
-                const { data: newTag, error } = await supabaseClient.from('tags').insert({ name: tagName }).select('id').single();
-                if (error) { alert('Неверное имя тега'); return; }
-                tagRecord = newTag;
-                await fetchTagsList();
+            if (selectedDayKey) {
+                const dayTrades = allCalendarTrades.filter(
+                    t => tradingDay(new Date(t.opened_at)) === selectedDayKey
+                );
+
+                loadAndRenderDayJournal(
+                    `Сделки за день ${selectedDayKey}`,
+                    dayTrades
+                ).then(() => {
+                    requestAnimationFrame(() => {
+                        window.scrollTo(0, scrollY);
+                    });
+                });
+            } else {
+                renderCalendar();
             }
-            await supabaseClient.from('trade_tags').upsert({ group_no: Number(groupNo), tag_id: tagRecord.id }, { onConflict: 'group_no,tag_id', ignoreDuplicates: true });
-            reloadCurrentDayJournal();
         }
-function reloadCurrentDayJournal() {
-    const scrollY = window.scrollY;
-    const activeInput = document.activeElement instanceof HTMLInputElement
-        ? document.activeElement
-        : null;
-    const activeGroup = activeInput?.getAttribute('data-group');
-    const wasTagInput = activeInput?.classList.contains('tag-input');
-
-    if (selectedDayKey) {
-        const dayTrades = allCalendarTrades.filter(
-            t => tradingDay(new Date(t.opened_at)) === selectedDayKey
-        );
-
-        loadAndRenderDayJournal(
-            `Сделки за день ${selectedDayKey}`,
-            dayTrades
-        ).then(() => {
-            requestAnimationFrame(() => {
-                window.scrollTo(0, scrollY);
-
-                if (wasTagInput && activeGroup) {
-                    const input = document.querySelector(
-                        `.tag-input[data-group="${activeGroup}"]`
-                    );
-                    input?.focus({ preventScroll: true });
-                }
-            });
-        });
-    } else {
-        renderCalendar();
-    }
-}
 
         function renderHeaderControls(pnl) {
             const cardHeader = document.getElementById('dayControlsHeader');
