@@ -916,7 +916,7 @@
         const currentTotalSec = currentHour * 3600 + currentMin * 60 + currentSec;
         const marketCloseSec = 16 * 3600; // 57600
         const marketOpenSec = 17 * 3600;  // 61200
-
+ 
         if (currentTotalSec >= marketCloseSec && currentTotalSec < marketOpenSec) {   
             const secLeft = marketOpenSec - currentTotalSec;
             const h = String(Math.floor(secLeft / 3600)).padStart(2, '0');
