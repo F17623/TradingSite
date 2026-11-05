@@ -2,30 +2,34 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Универсальный компонент тегов</title>
+    <title>Торговый журнал — Интеграция тегов</title>
+    <!-- Подключаем Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        /* Тонкий кастомный скроллбар для тегов и выпадающих списков */
         .custom-scrollbar::-webkit-scrollbar { height: 4px; width: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.4); border-radius: 4px; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 p-8 flex flex-col items-center min-h-screen">
 
     <div class="w-full max-w-4xl space-y-6">
         <div class="flex justify-between items-center mb-2">
-            <h1 class="text-xl font-bold text-slate-200">Песочница с универсальным TagPicker</h1>
+            <h1 class="text-xl font-bold text-slate-200">Карточки сделок с универсальными тегами</h1>
             <button onclick="addTradeCard()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors shadow">
-                + Добавить карточку
+                + Добавить сделку
             </button>
         </div>
 
+        <!-- Контейнер со списком сделок -->
         <div id="trades-list" class="space-y-4"></div>
     </div>
 
     <script>
         // ==========================================
-        // 1. ГЛОБАЛЬНЫЙ МЕНЕДЖЕР ИСТОРИИ ТЕГОВ
+        // 1. МЕНЕДЖЕР ИСТОРИИ ТЕГОВ (LOCALSTORAGE)
         // ==========================================
         const TagHistory = {
             storageKey: 'trading_journal_tag_history',
@@ -55,7 +59,6 @@
         class TagPicker {
             constructor({ container, selectedTags = [], onChange }) {
                 if (typeof container === 'string') {
-                    // Поддерживаем и "#id", и просто "id"
                     const id = container.startsWith('#') ? container.slice(1) : container;
                     this.container = document.getElementById(id);
                 } else {
@@ -63,7 +66,7 @@
                 }
 
                 if (!this.container) {
-                    console.error('TagPicker: контейнер не найден', container);
+                    console.error('TagPicker: Контейнер не найден в DOM', container);
                     return;
                 }
 
@@ -140,7 +143,6 @@
                     `;
                     badge.querySelector('button').onclick = (e) => {
                         e.stopPropagation();
-                        // Удаляем по имени, а не по индексу (безопаснее)
                         this.selectedTags = this.selectedTags.filter(t => t.toLowerCase() !== tag.toLowerCase());
                         this.renderBadges();
                         this.renderCheckboxList(this.input.value);
@@ -249,7 +251,7 @@
         }
 
         // ==========================================
-        // 3. ПРИМЕР ИСПОЛЬЗОВАНИЯ В КАРТОЧКАХ СДЕЛОК
+        // 3. ДЕМОНСТРАЦИЯ ДАННЫХ И РЕНДЕР СДЕЛОК
         // ==========================================
         let tradesData = [
             { id: 120, type: 'LONG', symbol: 'NQ DEC26', account: 'APEX628630000007', pnl: '+$60.00', ticks: '+12 t', tags: ['500t', '5m_at_mid', 'tick_25%'] },
@@ -279,18 +281,28 @@
                         </div>
                     </div>
 
-                    <!-- Контейнер под теги -->
+                    <!-- Контейнер для компонента тегов -->
                     <div id="tag-picker-${trade.id}"></div>
                 `;
 
+                // 1. Вставляем карточку в DOM
                 listContainer.appendChild(card);
 
-                // Инициализация компонента тегов в 1 строку:
+                // 2. Инициализируем TagPicker для этой карточки
                 new TagPicker({
                     container: `#tag-picker-${trade.id}`,
                     selectedTags: trade.tags,
-                    onChange: (updatedTags) => {
-                        trade.tags = updatedTags; // Синхронизация с вашими данными/Supabase
+                    onChange: async (updatedTags) => {
+                        trade.tags = updatedTags; // Обновляем локальный массив
+                        
+                        // Здесь происходит синхронизация с Supabase при изменениях:
+                        /*
+                        const { error } = await supabase
+                            .from('trades')
+                            .update({ tags: updatedTags })
+                            .eq('id', trade.id);
+                        if (error) console.error('Ошибка сохранения:', error);
+                        */
                     }
                 });
             });
