@@ -199,7 +199,7 @@
         }
 
         window.addTradeCard = function() {
-            const newId = tradesData.length > 0 ? tradesData[tradesData.length - 1].id + 1 : 120;
+            const newId = tradesData.length > 0 ? tradesData[tradesData.length - 1].id + 1 : 120; 
             tradesData.push({
                 id: newId,
                 type: Math.random() > 0.5 ? 'LONG' : 'SHORT',
