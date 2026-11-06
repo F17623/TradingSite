@@ -102,19 +102,7 @@
                     <span id="sessionLabel" class="text-slate-400">Futures close</span>
                     <span id="sessionCountdown" class="text-cyan-400 font-bold">00:00:00</span>
                 </div>
-<!-- CLOCK WIDGET WITH DEBUG -->
-<div class="hidden lg:flex flex-col bg-slate-900 border border-slate-800/80 px-3 py-1.5 rounded-xl font-mono text-xs">
-    <div class="flex items-center gap-2">
-        <span id="sessionStatusDot" class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-        <i data-lucide="clock" class="w-3.5 h-3.5 text-slate-400"></i>
-        <span id="sessionLabel" class="text-slate-400">Futures close</span>
-        <span id="sessionCountdown" class="text-cyan-400 font-bold">00:00:00</span>
-    </div>
-    <!-- СТРОКА ОТЛАДКИ -->
-    <div id="clockDebug" class="text-[9px] text-amber-400 mt-1 border-t border-slate-800 pt-0.5">
-        Debug loading...
-    </div>
-</div>
+
                 <div class="hidden md:flex items-center space-x-2">
                     <button onclick="openConfigModal()" class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white" title="Настройки"><i data-lucide="settings" class="w-4 h-4"></i></button>
                     <button onclick="lockSession()" class="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400" title="Выйти"><i data-lucide="lock" class="w-4 h-4"></i></button>
@@ -563,28 +551,22 @@
         let selectedDayKey = null;
 
         let showSnapshots = localStorage.getItem('showSnapshots') !== 'false';
-        let cachedTags = []; // Глобальный список тегов из БД Supabase
+        let cachedTags = []; 
         let allFirms = [];
         let allAccountsOverview = [];
 
-        // Переменные для сортировки таблицы сделок
         let currentTradesCache = [];
         let currentSortField = 'opened_at';
         let currentSortAsc = false;
 
-        // Защита от гонки асинхронного рендера дня
         let currentRenderToken = 0;
 
-        // ==========================================
-        // МЕНЕДЖЕР ИСТОРИИ ТЕГОВ ИЗ БАЗЫ ДАННЫХ SUPABASE
-        // ==========================================
         const TagHistory = {
             get() {
                 return cachedTags.map(t => t.name);
             }
         };
 
-        // ЕДИНЫЙ ГЛОБАЛЬНЫЙ МЕНЕДЖЕР СЛУШАТЕЛЯ КЛИКОВ ДЛЯ ВСЕХ TAGPICKER
         const DocumentTagPickerHandler = {
             instances: new Set(),
             isInitialized: false,
@@ -880,70 +862,63 @@
             selectCalendarDay(todayStr, todayTrades);
         }
 
-     function startSessionClock() {
-    setInterval(() => {
-        const now = new Date(Date.now() + timeOffsetMs);
+        function startSessionClock() {
+            setInterval(() => {
+                const now = new Date(Date.now() + timeOffsetMs);
 
-        const formatter = new Intl.DateTimeFormat('en-GB', {
-            timeZone: 'America/Chicago',
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hourCycle: 'h23'
-        });
+                const formatter = new Intl.DateTimeFormat('en-GB', {
+                    timeZone: 'America/Chicago',
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hourCycle: 'h23'
+                });
 
-        const parts = formatter.formatToParts(now);
-        const getValue = type => parseInt(parts.find(p => p.type === type).value, 10);
+                const parts = formatter.formatToParts(now);
+                const getValue = type => parseInt(parts.find(p => p.type === type).value, 10);
 
-        const currentHour = getValue('hour');
-        const currentMin = getValue('minute');
-        const currentSec = getValue('second');
+                const currentHour = getValue('hour');
+                const currentMin = getValue('minute');
+                const currentSec = getValue('second');
 
-        const labelEl = document.getElementById('sessionLabel');
-        const timerEl = document.getElementById('sessionCountdown');
-        const dotEl = document.getElementById('sessionStatusDot');
-        const debugEl = document.getElementById('clockDebug');
+                const labelEl = document.getElementById('sessionLabel');
+                const timerEl = document.getElementById('sessionCountdown');
+                const dotEl = document.getElementById('sessionStatusDot');
 
-        // Вывод отладки на страницу
-        if (debugEl) {
-            const timeStr = `${String(currentHour).padStart(2,'0')}:${String(currentMin).padStart(2,'0')}:${String(currentSec).padStart(2,'0')}`;
-            debugEl.innerText = `CT: ${timeStr} | Offset: ${timeOffsetMs}ms | H:${currentHour}`;
+                if (!labelEl || !timerEl || !dotEl) return;
+
+                const currentTotalSec = currentHour * 3600 + currentMin * 60 + currentSec;
+                const marketCloseSec = 16 * 3600; // 57600
+                const marketOpenSec = 17 * 3600;  // 61200
+         
+                if (currentTotalSec >= marketCloseSec && currentTotalSec < marketOpenSec) {   
+                    const secLeft = marketOpenSec - currentTotalSec;
+                    const h = String(Math.floor(secLeft / 3600)).padStart(2, '0');
+                    const m = String(Math.floor((secLeft % 3600) / 60)).padStart(2, '0');
+                    const s = String(secLeft % 60).padStart(2, '0');
+
+                    labelEl.innerText = "Торги закрыты (перерыв)";
+                    timerEl.innerText = `${h}:${m}:${s}`;
+                    timerEl.className = "text-amber-400 font-bold";
+                    dotEl.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
+                } else {
+                    let secLeft = marketCloseSec - currentTotalSec;
+                    if (secLeft < 0) {
+                        secLeft += 24 * 3600;
+                    }
+
+                    const h = String(Math.floor(secLeft / 3600)).padStart(2, '0');
+                    const m = String(Math.floor((secLeft % 3600) / 60)).padStart(2, '0');
+                    const s = String(secLeft % 60).padStart(2, '0');
+
+                    labelEl.innerText = "Futures close";
+                    timerEl.innerText = `${h}:${m}:${s}`;
+                    timerEl.className = "text-cyan-400 font-bold";
+                    dotEl.className = "w-2 h-2 rounded-full bg-cyan-400 animate-pulse";
+                }
+            }, 1000);
         }
-
-        if (!labelEl || !timerEl || !dotEl) return;
-
-        const currentTotalSec = currentHour * 3600 + currentMin * 60 + currentSec;
-        const marketCloseSec = 16 * 3600; // 57600
-        const marketOpenSec = 17 * 3600;  // 61200
- 
-        if (currentTotalSec >= marketCloseSec && currentTotalSec < marketOpenSec) {   
-            const secLeft = marketOpenSec - currentTotalSec;
-            const h = String(Math.floor(secLeft / 3600)).padStart(2, '0');
-            const m = String(Math.floor((secLeft % 3600) / 60)).padStart(2, '0');
-            const s = String(secLeft % 60).padStart(2, '0');
-
-            labelEl.innerText = "Торги закрыты (перерыв)";
-            timerEl.innerText = `${h}:${m}:${s}`;
-            timerEl.className = "text-amber-400 font-bold";
-            dotEl.className = "w-2 h-2 rounded-full bg-amber-400 animate-pulse";
-        } else {
-            let secLeft = marketCloseSec - currentTotalSec;
-            if (secLeft < 0) {
-                secLeft += 24 * 3600;
-            }
-
-            const h = String(Math.floor(secLeft / 3600)).padStart(2, '0');
-            const m = String(Math.floor((secLeft % 3600) / 60)).padStart(2, '0');
-            const s = String(secLeft % 60).padStart(2, '0');
-
-            labelEl.innerText = "Futures close";
-            timerEl.innerText = `${h}:${m}:${s}`;
-            timerEl.className = "text-cyan-400 font-bold";
-            dotEl.className = "w-2 h-2 rounded-full bg-cyan-400 animate-pulse";
-        }
-    }, 1000);
-}
 
         function confirmAction(type, message) {
             if (currentLimitType === 'loss' || currentLimitType === 'profit') {
@@ -1097,15 +1072,13 @@
             }
 
             try {
-                // Получение эталонного времени из Supabase
                 try {
                     const { data: serverTime, error: timeErr } = await supabaseClient.rpc('get_server_time');
                     if (!timeErr && serverTime) {
                         timeOffsetMs = new Date(serverTime).getTime() - Date.now();
-						
                     }
                 } catch (e) {
-                    // не ломаем основной fetchData, оставляем старый offset
+                    // Игнорируем ошибку получения времени, используем старый offset
                 }
 
                 const { data: riskData, error: riskErr } = await supabaseClient
@@ -1258,7 +1231,6 @@
             lucide.createIcons();
         }
 
-        // --- СОРТИРОВКА ТАБЛИЦЫ СДЕЛОК ---
         function sortTrades(field, keepDirection = false) {
             if (!keepDirection) {
                 if (currentSortField === field) {
@@ -1746,7 +1718,6 @@
                 `;
                 container.appendChild(cardDiv);
 
-                // Инициализация TagPicker для этой сделки
                 new TagPicker({
                     container: `#tag-picker-${g.group_no}`,
                     selectedTags: currentTagNames,
@@ -1765,14 +1736,11 @@
 
             const groupNum = Number(groupNo);
 
-            // Убеждаемся, что запись в trade_journal существует
             await supabaseClient.from('trade_journal').upsert({ group_no: groupNum }, { onConflict: 'group_no', ignoreDuplicates: true });
 
-            // 1. Находим существующие ID тегов или создаём недостающие пакетом
-            const targetTagMap = new Map(); // tagNameLower -> { id, name }
+            const targetTagMap = new Map();
 
             if (updatedTagNames.length > 0) {
-                // Ищем теги из глобального кэша или базы
                 const missingTagNames = [];
                 updatedTagNames.forEach(name => {
                     const found = cachedTags.find(t => t.name.toLowerCase() === name.toLowerCase());
@@ -1783,7 +1751,6 @@
                     }
                 });
 
-                // Если есть теги, которых нет в кэше, проверяем/создаем в Supabase
                 if (missingTagNames.length > 0) {
                     const { data: existingDBTags } = await supabaseClient.from('tags').select('id, name').in('name', missingTagNames);
                     if (existingDBTags) {
@@ -1800,17 +1767,14 @@
                 }
             }
 
-            // 2. Получаем текущие привязанные теги из trade_tags для сделки
             const { data: currentTradeTags } = await supabaseClient.from('trade_tags').select('tag_id').eq('group_no', groupNum);
             const currentTagIds = new Set((currentTradeTags || []).map(tt => tt.tag_id));
 
             const targetTagIds = new Set(Array.from(targetTagMap.values()).map(t => t.id));
 
-            // 3. Считаем DIFF (Разницу)
             const idsToDelete = [...currentTagIds].filter(id => !targetTagIds.has(id));
             const idsToAdd = [...targetTagIds].filter(id => !currentTagIds.has(id));
 
-            // 4. Применяем минимально необходимые точечные операции
             if (idsToDelete.length > 0) {
                 await supabaseClient.from('trade_tags').delete().eq('group_no', groupNum).in('tag_id', idsToDelete);
             }
@@ -1820,7 +1784,6 @@
                 await supabaseClient.from('trade_tags').insert(insertRows);
             }
 
-            // Обновляем глобальный кэш тегов из базы
             await fetchTagsList();
         }
 
