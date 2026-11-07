@@ -144,19 +144,27 @@
                 </div>
             </div>
 
+            <!-- RISK & SLIDING SLOTS CONTROL PANEL -->
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col lg:flex-row items-center justify-between gap-4">
-                <div class="flex items-center space-x-3 w-full lg:w-auto">
-                    <div class="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center">
-                        <i data-lucide="shield-alert" class="w-5 h-5"></i>
-                    </div>
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <h3 class="text-sm font-bold text-white">Защита от тильта и сессий</h3>
-                            <span id="tiltTimerBadge" class="hidden px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                00:00:00
-                            </span>
+                <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
+                    <div class="flex items-center space-x-3">
+                        <div class="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center shrink-0">
+                            <i data-lucide="shield-alert" class="w-5 h-5"></i>
                         </div>
-                        <p id="panelSubText" class="text-[11px] text-slate-400">Управление режимами в risk_control</p>
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h3 class="text-sm font-bold text-white">Защита от тильта и сессий</h3>
+                                <span id="tiltTimerBadge" class="hidden px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                    00:00:00
+                                </span>
+                            </div>
+                            <p id="panelSubText" class="text-[11px] text-slate-400 mt-0.5 font-mono">За час: 0 из 5 · сегодня 0 · пик дня $0</p>
+                        </div>
+                    </div>
+
+                    <!-- AMMO / SLOTS VISUAL CONTAINER -->
+                    <div id="slotsVisualContainer" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800 shrink-0">
+                        <!-- Dynamic slot circles rendered here -->
                     </div>
                 </div>
 
@@ -249,7 +257,7 @@
                     </div>
                     <div class="flex items-center space-x-2 bg-slate-950/60 border border-slate-800 p-1.5 rounded-xl">
                         <button onclick="changeMonth(-1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-                        <span id="calendarMonthLabel" class="text-xs font-bold text-white font-mono px-2">Октябрь 2026</span>
+                        <span id="calendarMonthLabel" class="text-xs font-bold text-white font-mono px-2">Ноябрь 2026</span>
                         <button onclick="changeMonth(1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
                     </div>
                 </div>
@@ -378,7 +386,7 @@
         </main>
 
         <footer class="mt-auto border-t border-slate-800/60 py-4 px-4 text-center text-[11px] text-slate-500">
-            <p>NinjaTrader 8 Risk Controller &bull; Supabase Postgres Engine &bull; Multi-Firm Manager</p>
+            <p>NinjaTrader 8 Risk Controller &bull; Supabase Postgres Engine &bull; Sliding Window 60m Guard</p>
         </footer>
     </div>
 
@@ -528,7 +536,7 @@
         </div>
     </div>
 
-    <!-- ПЛАВАЮЩАЯ КНОПКА «НАВЕРХ» -->
+    <!-- PLUG-IN SCROLL TOP BUTTON -->
     <button onclick="scrollToTop()" id="scrollTopBtn" title="Наверх"
         class="fixed bottom-6 right-6 z-40 hidden p-3 rounded-2xl bg-indigo-600 text-white shadow-xl shadow-indigo-600/30 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center">
         <i data-lucide="arrow-up" class="w-5 h-5"></i>
@@ -1065,7 +1073,7 @@
         async function fetchData() {
             updateSyncStatus('syncing');
             if (isDemoMode || !supabaseClient) {
-                renderRiskStatus({ full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 });
+                renderRiskStatus({ full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000, max_trades: 5, stat_rate_used: 0 });
                 renderTrades([]);
                 updateSyncStatus('demo');
                 return;
@@ -1078,7 +1086,7 @@
                         timeOffsetMs = new Date(serverTime).getTime() - Date.now();
                     }
                 } catch (e) {
-                    // Игнорируем ошибку получения времени, используем старый offset
+                    // Игнорируем ошибку получения времени
                 }
 
                 const { data: riskData, error: riskErr } = await supabaseClient
@@ -1154,8 +1162,11 @@
             else { dot.className = "w-1.5 h-1.5 rounded-full bg-rose-500"; text.innerText = "Ошибка сети"; }
         }
 
+        // ==========================================
+        // SLIDING TRADE LIMIT & RISK STATUS ENGINE
+        // ==========================================
         function renderRiskStatus(risk) {
-            if (!risk) risk = { full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000 };
+            if (!risk) risk = { full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000, max_trades: 5, stat_rate_used: 0 };
             currentLimitType = risk.limit_type || '';
 
             document.getElementById('lossLimitVal').innerText = `$${Number(risk.loss_limit || -1000).toLocaleString('en-US')}`;
@@ -1171,45 +1182,123 @@
             const buttonsContainer = document.getElementById('controlButtonsContainer');
             const subText = document.getElementById('panelSubText');
             const tiltBadge = document.getElementById('tiltTimerBadge');
+            const slotsVisualContainer = document.getElementById('slotsVisualContainer');
 
             if (tiltPanelTimer) { clearInterval(tiltPanelTimer); tiltPanelTimer = null; }
 
+            const maxTrades = Number(risk.max_trades || 5);
+            const usedRateSlots = Number(risk.stat_rate_used || 0);
+            const statTradesToday = Number(risk.stat_trades || 0);
+            const peakToday = Number(risk.stat_peak || 0);
+
+            // 1. Render Status Subtext (Specifications 2.1)
+            let freeSlotInMinText = '';
+            if (usedRateSlots > 0 && risk.stat_rate_free_at) {
+                const freeAtMs = new Date(risk.stat_rate_free_at).getTime();
+                const nowMs = Date.now() + timeOffsetMs;
+                const diffMin = Math.ceil((freeAtMs - nowMs) / 60000);
+                if (diffMin > 0) {
+                    freeSlotInMinText = ` · слот через ${diffMin} мин`;
+                }
+            }
+
+            const peakFormatted = `${peakToday >= 0 ? '+$' : '-$'}${Math.abs(peakToday).toFixed(0)}`;
+            subText.innerText = `За час: ${usedRateSlots} из ${maxTrades} · сегодня ${statTradesToday} · пик дня ${peakFormatted}${freeSlotInMinText}`;
+
+            if (currentLimitType === 'loss' || currentLimitType === 'profit') {
+                subText.className = "text-[11px] text-rose-400 font-bold font-mono";
+            } else if (currentLimitType === 'count') {
+                subText.className = "text-[11px] text-amber-400 font-bold font-mono";
+            } else {
+                subText.className = "text-[11px] text-slate-400 font-mono";
+            }
+
+            // 2. Render Interactive Ammo/Slots Circles (Specifications 2.2)
+            if (slotsVisualContainer) {
+                if (maxTrades <= 10) {
+                    let circlesHtml = '';
+                    const isLimitHit = currentLimitType === 'count' || usedRateSlots >= maxTrades;
+
+                    for (let i = 0; i < maxTrades; i++) {
+                        if (isLimitHit) {
+                            // All slots red when rate limit is active
+                            circlesHtml += `<span title="Лимит исчерпан" class="w-3.5 h-3.5 rounded-full bg-rose-500 border border-rose-400/50 shadow-sm shadow-rose-500/50 animate-subtle-pulse"></span>`;
+                        } else if (i < usedRateSlots) {
+                            // Active / used slot (Amber)
+                            circlesHtml += `<span title="Слот занят (активная сделка в 60м окне)" class="w-3.5 h-3.5 rounded-full bg-amber-400 border border-amber-300 shadow-sm shadow-amber-400/40"></span>`;
+                        } else {
+                            // Free slot (Green outline)
+                            circlesHtml += `<span title="Свободный слот" class="w-3.5 h-3.5 rounded-full bg-transparent border-2 border-emerald-400/80"></span>`;
+                        }
+                    }
+                    slotsVisualContainer.innerHTML = circlesHtml;
+                    slotsVisualContainer.classList.remove('hidden');
+                } else {
+                    // Fallback to text if maxTrades > 10
+                    slotsVisualContainer.innerHTML = `<span class="text-xs font-mono font-bold text-slate-300">${usedRateSlots}/${maxTrades}</span>`;
+                    slotsVisualContainer.classList.remove('hidden');
+                }
+            }
+
+            // 3. Control Buttons State (Specifications 2.5)
+            // Buttons are disabled ONLY during hard loss/profit limits. They remain active during 'count' rate limit!
             if (currentLimitType === 'loss' || currentLimitType === 'profit') {
                 buttonsContainer.style.opacity = '0.4';
                 buttonsContainer.style.pointerEvents = 'none';
-                subText.innerText = `🔒 Заблокировано системой (${currentLimitType.toUpperCase()} LIMIT)`;
-                subText.className = "text-[11px] text-rose-400 font-bold";
             } else {
                 buttonsContainer.style.opacity = '1';
                 buttonsContainer.style.pointerEvents = 'auto';
-                const maxT = Number(risk.max_trades || 0), nT = Number(risk.stat_trades || 0), pk = Number(risk.stat_peak || 0);
-                let st = "Управление режимами в risk_control";
-                if (maxT) st = `Сделок сегодня: ${nT} из ${maxT} · пик дня ${pk >= 0 ? '+$' : '-$'}${Math.abs(pk).toFixed(0)}`;
-                subText.innerText = st;
-                subText.className = "text-[11px] text-slate-400";
             }
 
-            if (risk.full_stop || currentLimitType) {
+            // 4. Smart Target Countdown Timer & Banner Formatting (Specifications 2.3 & 2.4)
+            const getRemainingMin = (targetIso) => {
+                if (!targetIso) return 0;
+                const targetMs = new Date(targetIso).getTime();
+                const nowMs = Date.now() + timeOffsetMs;
+                return Math.max(0, Math.ceil((targetMs - nowMs) / 60000));
+            };
+
+            const startSmartTimer = (targetIsoTime, fallbackToCTClose = false) => {
                 tiltBadge.classList.remove('hidden');
-                const tick = () => {
-                    let sec = secondsToNextOpenCT();
-                    if (sec <= 0) {
-                        tiltBadge.innerText = "00:00:00";
-                        if (tiltPanelTimer) { clearInterval(tiltPanelTimer); tiltPanelTimer = null; }
+                const updateCountdown = () => {
+                    const nowMs = Date.now() + timeOffsetMs;
+                    let targetMs = targetIsoTime ? new Date(targetIsoTime).getTime() : 0;
+                    
+                    if (fallbackToCTClose || !targetMs) {
+                        const sec = secondsToNextOpenCT();
+                        if (sec <= 0) {
+                            tiltBadge.innerText = "00:00:00";
+                            if (tiltPanelTimer) { clearInterval(tiltPanelTimer); tiltPanelTimer = null; }
+                            return;
+                        }
+                        const hh = String(Math.floor(sec / 3600)).padStart(2, '0');
+                        const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+                        const ss = String(sec % 60).padStart(2, '0');
+                        tiltBadge.innerText = `${hh}:${mm}:${s}`;
                         return;
                     }
-                    const hh = String(Math.floor(sec / 3600)).padStart(2, '0');
-                    const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
-                    const ss = String(sec % 60).padStart(2, '0');
+
+                    const diffMs = targetMs - nowMs;
+                    if (diffMs <= 0) {
+                        tiltBadge.innerText = "00:00:00";
+                        if (tiltPanelTimer) { clearInterval(tiltPanelTimer); tiltPanelTimer = null; }
+                        fetchData(); // Refresh state when timer hits zero
+                        return;
+                    }
+
+                    const totalSec = Math.floor(diffMs / 1000);
+                    const hh = String(Math.floor(totalSec / 3600)).padStart(2, '0');
+                    const mm = String(Math.floor((totalSec % 3600) / 60)).padStart(2, '0');
+                    const ss = String(totalSec % 60).padStart(2, '0');
                     tiltBadge.innerText = `${hh}:${mm}:${ss}`;
                 };
-                tick();
-                tiltPanelTimer = setInterval(tick, 1000);
-            } else {
-                tiltBadge.classList.add('hidden');
-            }
+                updateCountdown();
+                tiltPanelTimer = setInterval(updateCountdown, 1000);
+            };
 
             if (!risk.full_stop && !currentLimitType) {
+                // NORMAL: ALLOW TRADING
+                tiltBadge.classList.add('hidden');
                 banner.className = "p-5 rounded-2xl border bg-emerald-950/35 border-emerald-500/30 shadow-lg shadow-emerald-950/20";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
                 badge.innerText = "ALLOW";
@@ -1220,16 +1309,96 @@
                     statTitle.innerHTML = `<i data-lucide="shield-check" class="w-5 h-5 inline mr-1"></i><span class="text-emerald-400">АКТИВЕН</span>`;
                     statSub.innerText = "Без кнопки сброса";
                 }
-            } else {
+            } else if (currentLimitType === 'count') {
+                // SLIDING TRADE LIMIT BANNER (Specifications 2.3 & 2.4)
+                const minLeft = getRemainingMin(risk.rate_until);
                 banner.className = "p-5 rounded-2xl border bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
-                badge.innerText = currentLimitType.toUpperCase() + " STOP";
-                title.innerText = "ЗАЩИТА АКТИВНА";
+                badge.innerText = "COUNT STOP";
+                title.innerText = "ПАУЗА ПО ЛИМИТУ СДЕЛОК";
                 title.className = "text-2xl font-black tracking-tight text-amber-300 pt-1";
-                desc.innerText = "Торговля остановлена контроллером.";
+                desc.innerText = `Не больше ${maxTrades} сделок за 60 мин. Вход закрыт еще ${minLeft} мин. Открытая сделка может дойти до конца.`;
+
+                if (statCard) {
+                    statTitle.innerHTML = `<i data-lucide="timer" class="w-5 h-5 inline mr-1"></i><span class="text-amber-400">ПАУЗА (COUNT)</span>`;
+                    statSub.innerText = `Еще ~${minLeft} мин`;
+                }
+
+                startSmartTimer(risk.rate_until);
+            } else if (currentLimitType === 'break' || currentLimitType === 'session') {
+                // MANUAL BREAK / SESSION LOCK
+                const minLeft = getRemainingMin(risk.unlock_at);
+                banner.className = "p-5 rounded-2xl border bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
+                badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
+                badge.innerText = currentLimitType.toUpperCase() + " LOCK";
+                title.innerText = currentLimitType === 'session' ? "СЕССИЯ ЗАКРЫТА" : "ПАУЗА 1 ЧАС";
+                title.className = "text-2xl font-black tracking-tight text-amber-300 pt-1";
+                desc.innerText = `Торговля заблокирована вручную. Пауза еще ${minLeft} мин.`;
+
+                startSmartTimer(risk.unlock_at);
+            } else if (currentLimitType === 'asia') {
+                // ASIA LOCK
+                const minLeft = getRemainingMin(risk.asia_until);
+                banner.className = "p-5 rounded-2xl border bg-indigo-950/40 border-indigo-500/40 shadow-lg shadow-indigo-950/30";
+                badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 animate-subtle-pulse";
+                badge.innerText = "ASIA LOCK";
+                title.innerText = "АЗИАТСКАЯ СЕССИЯ ЗАКРЫТА";
+                title.className = "text-2xl font-black tracking-tight text-indigo-300 pt-1";
+                desc.innerText = `Блокировка Азиатского диапазона еще ${minLeft} мин.`;
+
+                startSmartTimer(risk.asia_until);
+            } else {
+                // HARD LOSS / PROFIT / TRAIL LIMITS
+                banner.className = "p-5 rounded-2xl border bg-rose-950/40 border-rose-500/40 shadow-lg shadow-rose-950/30";
+                badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-subtle-pulse";
+                badge.innerText = (currentLimitType || 'RISK').toUpperCase() + " STOP";
+                title.innerText = "ДНЕВНОЙ ЛИМИТ ИСЧЕРПАН";
+                title.className = "text-2xl font-black tracking-tight text-rose-300 pt-1";
+                desc.innerText = "Торговля остановлена контроллером рисков до следующей сессии (17:00 CT).";
+
+                if (statCard) {
+                    statTitle.innerHTML = `<i data-lucide="lock" class="w-5 h-5 inline mr-1"></i><span class="text-rose-400">СЕКВЕСТР</span>`;
+                    statSub.innerText = "До 17:00 CT";
+                }
+
+                startSmartTimer(null, true); // Fallback to Chicago 17:00 close timer
             }
+
             lucide.createIcons();
         }
+
+        // ==========================================
+        // CONSOLE TESTING HELPER (Specifications 4.3)
+        // ==========================================
+        window.testRiskStatus = function(type = 'count') {
+            const futureMs = Date.now() + 20 * 60 * 1000;
+            const freeAtMs = Date.now() + 15 * 60 * 1000;
+
+            let sample = {
+                id: 1,
+                full_stop: true,
+                limit_type: type,
+                loss_limit: -1000,
+                profit_limit: 1000,
+                max_trades: 5,
+                stat_rate_used: type === 'count' ? 5 : 3,
+                stat_rate_free_at: new Date(freeAtMs).toISOString(),
+                rate_until: new Date(futureMs).toISOString(),
+                unlock_at: new Date(futureMs).toISOString(),
+                asia_until: new Date(futureMs).toISOString(),
+                stat_trades: 4,
+                stat_peak: 250
+            };
+
+            if (type === 'normal') {
+                sample.full_stop = false;
+                sample.limit_type = '';
+                sample.stat_rate_used = 1;
+            }
+
+            console.log(`[Testing UI] Simulating risk state: '${type}'`, sample);
+            renderRiskStatus(sample);
+        };
 
         function sortTrades(field, keepDirection = false) {
             if (!keepDirection) {
