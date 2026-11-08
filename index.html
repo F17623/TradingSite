@@ -163,9 +163,7 @@
                     </div>
 
                     <!-- AMMO / SLOTS VISUAL CONTAINER -->
-                    <div id="slotsVisualContainer" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800 shrink-0">
-                        <!-- Dynamic slot circles rendered here -->
-                    </div>
+                    <div id="slotsVisualContainer" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800 shrink-0"></div>
                 </div>
 
                 <div id="controlButtonsContainer" class="flex flex-wrap items-center gap-2.5 w-full lg:w-auto transition-opacity">
@@ -245,7 +243,7 @@
         <!-- CALENDAR & JOURNAL VIEW -->
         <main id="viewCalendar" class="hidden flex-1 max-w-6xl w-full mx-auto p-4 space-y-4">
             <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
-                <div class="flex items-center justify-between">
+                <div class="flex items-center justify-between flex-wrap gap-3">
                     <div class="flex items-center space-x-3">
                         <div class="p-2.5 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/20">
                             <i data-lucide="calendar" class="w-5 h-5"></i>
@@ -255,10 +253,20 @@
                             <p class="text-xs text-slate-400">Нажмите на любой день для просмотра и разбора сделок с тегами и графиками</p>
                         </div>
                     </div>
-                    <div class="flex items-center space-x-2 bg-slate-950/60 border border-slate-800 p-1.5 rounded-xl">
-                        <button onclick="changeMonth(-1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
-                        <span id="calendarMonthLabel" class="text-xs font-bold text-white font-mono px-2">Ноябрь 2026</span>
-                        <button onclick="changeMonth(1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                    
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <!-- БЫСТРАЯ КНОПКА: СДЕЛКИ БЕЗ ТЕГОВ -->
+                        <button id="navUntaggedTrades" onclick="jumpToUntaggedTrades()" class="hidden px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm">
+                            <i data-lucide="tag" class="w-3.5 h-3.5"></i>
+                            <span>Без тегов</span>
+                            <span id="untaggedCountBadge" class="ml-1 px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-200 text-[10px] font-mono">0</span>
+                        </button>
+
+                        <div class="flex items-center space-x-2 bg-slate-950/60 border border-slate-800 p-1.5 rounded-xl">
+                            <button onclick="changeMonth(-1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                            <span id="calendarMonthLabel" class="text-xs font-bold text-white font-mono px-2">Ноябрь 2026</span>
+                            <button onclick="changeMonth(1)" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                        </div>
                     </div>
                 </div>
 
@@ -856,6 +864,7 @@
             if (tabName === 'calendar') {
                 renderCalendar();
                 fetchFreeSnapshots();
+                updateUntaggedButtonState();
             }
             if (tabName === 'accounts') fetchAccountsData();
             lucide.createIcons();
@@ -868,6 +877,83 @@
             currentCalDate = new Date(y, m - 1, 1);
             const todayTrades = allCalendarTrades.filter(t => t.opened_at && tradingDay(new Date(t.opened_at)) === todayStr);
             selectCalendarDay(todayStr, todayTrades);
+        }
+
+        // ==========================================
+        // НОВАЯ ФУНКЦИЯ: СДЕЛКИ БЕЗ ТЕГОВ
+        // ==========================================
+        async function jumpToUntaggedTrades() {
+            switchTab('calendar');
+            if (!supabaseClient) return;
+
+            // Получаем уникальные group_no из загруженных сделок за последние 3 месяца
+            const groupNos = [...new Set(allCalendarTrades.map(t => Number(t.group_no)).filter(Boolean))];
+            if (groupNos.length === 0) {
+                loadAndRenderDayJournal("Сделки без тегов (0)", []);
+                return;
+            }
+
+            // Узнаем, у каких group_no есть теги в таблице trade_journal / trade_tags
+            const { data: taggedData } = await supabaseClient
+                .from('trade_journal')
+                .select('group_no, trade_tags(tag_id)')
+                .in('group_no', groupNos);
+
+            const taggedGroups = new Set();
+            if (taggedData) {
+                taggedData.forEach(item => {
+                    if (item.trade_tags && item.trade_tags.length > 0) {
+                        taggedGroups.add(Number(item.group_no));
+                    }
+                });
+            }
+
+            // Отбираем только те сделки (группы), у которых нет тегов
+            const untaggedGroupNos = groupNos.filter(gNo => !taggedGroups.has(gNo));
+            const untaggedTrades = allCalendarTrades.filter(t => untaggedGroupNos.includes(Number(t.group_no)));
+
+            selectedDayKey = null; // сбрасываем выбор конкретного дня
+            renderCalendarGridOnly();
+            loadAndRenderDayJournal(`Сделки без тегов (${untaggedGroupNos.length})`, untaggedTrades);
+            document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        async function updateUntaggedButtonState() {
+            if (!supabaseClient) return;
+            const groupNos = [...new Set(allCalendarTrades.map(t => Number(t.group_no)).filter(Boolean))];
+            const btn = document.getElementById('navUntaggedTrades');
+            const badge = document.getElementById('untaggedCountBadge');
+
+            if (!btn || groupNos.length === 0) {
+                if (btn) btn.classList.add('hidden');
+                return;
+            }
+
+            const { data: taggedData } = await supabaseClient
+                .from('trade_journal')
+                .select('group_no, trade_tags(tag_id)')
+                .in('group_no', groupNos);
+
+            const taggedGroups = new Set();
+            if (taggedData) {
+                taggedData.forEach(item => {
+                    if (item.trade_tags && item.trade_tags.length > 0) {
+                        taggedGroups.add(Number(item.group_no));
+                    }
+                });
+            }
+
+            const untaggedCount = groupNos.filter(gNo => !taggedGroups.has(gNo)).length;
+            badge.innerText = untaggedCount;
+
+            if (untaggedCount > 0) {
+                btn.classList.remove('hidden');
+                btn.classList.remove('opacity-45', 'pointer-events-none');
+            } else {
+                // Если нет сделок без тегов — делаем кнопку неактивной/полупрозрачной
+                btn.classList.remove('hidden');
+                btn.classList.add('opacity-45', 'pointer-events-none');
+            }
         }
 
         function startSessionClock() {
@@ -1085,9 +1171,7 @@
                     if (!timeErr && serverTime) {
                         timeOffsetMs = new Date(serverTime).getTime() - Date.now();
                     }
-                } catch (e) {
-                    // Игнорируем ошибку получения времени
-                }
+                } catch (e) {}
 
                 const { data: riskData, error: riskErr } = await supabaseClient
                     .from('risk_control')
@@ -1140,6 +1224,7 @@
 
                 renderCalendarGridOnly();
                 populateFreeAssignDropdown();
+                updateUntaggedButtonState();
 
                 updateSyncStatus('success');
             } catch (err) {
@@ -1162,9 +1247,6 @@
             else { dot.className = "w-1.5 h-1.5 rounded-full bg-rose-500"; text.innerText = "Ошибка сети"; }
         }
 
-        // ==========================================
-        // SLIDING TRADE LIMIT & RISK STATUS ENGINE
-        // ==========================================
         function renderRiskStatus(risk) {
             if (!risk) risk = { full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000, max_trades: 5, stat_rate_used: 0 };
             currentLimitType = risk.limit_type || '';
@@ -1191,7 +1273,6 @@
             const statTradesToday = Number(risk.stat_trades || 0);
             const peakToday = Number(risk.stat_peak || 0);
 
-            // 1. Render Status Subtext (Specifications 2.1)
             let freeSlotInMinText = '';
             if (usedRateSlots > 0 && risk.stat_rate_free_at) {
                 const freeAtMs = new Date(risk.stat_rate_free_at).getTime();
@@ -1213,7 +1294,6 @@
                 subText.className = "text-[11px] text-slate-400 font-mono";
             }
 
-            // 2. Render Interactive Ammo/Slots Circles (Specifications 2.2)
             if (slotsVisualContainer) {
                 if (maxTrades <= 10) {
                     let circlesHtml = '';
@@ -1221,27 +1301,21 @@
 
                     for (let i = 0; i < maxTrades; i++) {
                         if (isLimitHit) {
-                            // All slots red when rate limit is active
                             circlesHtml += `<span title="Лимит исчерпан" class="w-3.5 h-3.5 rounded-full bg-rose-500 border border-rose-400/50 shadow-sm shadow-rose-500/50 animate-subtle-pulse"></span>`;
                         } else if (i < usedRateSlots) {
-                            // Active / used slot (Amber)
-                            circlesHtml += `<span title="Слот занят (активная сделка в 60м окне)" class="w-3.5 h-3.5 rounded-full bg-amber-400 border border-amber-300 shadow-sm shadow-amber-400/40"></span>`;
+                            circlesHtml += `<span title="Слот занят" class="w-3.5 h-3.5 rounded-full bg-amber-400 border border-amber-300 shadow-sm shadow-amber-400/40"></span>`;
                         } else {
-                            // Free slot (Green outline)
                             circlesHtml += `<span title="Свободный слот" class="w-3.5 h-3.5 rounded-full bg-transparent border-2 border-emerald-400/80"></span>`;
                         }
                     }
                     slotsVisualContainer.innerHTML = circlesHtml;
                     slotsVisualContainer.classList.remove('hidden');
                 } else {
-                    // Fallback to text if maxTrades > 10
                     slotsVisualContainer.innerHTML = `<span class="text-xs font-mono font-bold text-slate-300">${usedRateSlots}/${maxTrades}</span>`;
                     slotsVisualContainer.classList.remove('hidden');
                 }
             }
 
-            // 3. Control Buttons State (Specifications 2.5)
-            // Buttons are disabled ONLY during hard loss/profit limits. They remain active during 'count' rate limit!
             if (currentLimitType === 'loss' || currentLimitType === 'profit') {
                 buttonsContainer.style.opacity = '0.4';
                 buttonsContainer.style.pointerEvents = 'none';
@@ -1250,7 +1324,6 @@
                 buttonsContainer.style.pointerEvents = 'auto';
             }
 
-            // 4. Smart Target Countdown Timer & Banner Formatting (Specifications 2.3 & 2.4)
             const getRemainingMin = (targetIso) => {
                 if (!targetIso) return 0;
                 const targetMs = new Date(targetIso).getTime();
@@ -1274,7 +1347,7 @@
                         const hh = String(Math.floor(sec / 3600)).padStart(2, '0');
                         const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
                         const ss = String(sec % 60).padStart(2, '0');
-                        tiltBadge.innerText = `${hh}:${mm}:${s}`;
+                        tiltBadge.innerText = `${hh}:${mm}:${ss}`;
                         return;
                     }
 
@@ -1282,7 +1355,7 @@
                     if (diffMs <= 0) {
                         tiltBadge.innerText = "00:00:00";
                         if (tiltPanelTimer) { clearInterval(tiltPanelTimer); tiltPanelTimer = null; }
-                        fetchData(); // Refresh state when timer hits zero
+                        fetchData();
                         return;
                     }
 
@@ -1297,7 +1370,6 @@
             };
 
             if (!risk.full_stop && !currentLimitType) {
-                // NORMAL: ALLOW TRADING
                 tiltBadge.classList.add('hidden');
                 banner.className = "p-5 rounded-2xl border bg-emerald-950/35 border-emerald-500/30 shadow-lg shadow-emerald-950/20";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
@@ -1310,7 +1382,6 @@
                     statSub.innerText = "Без кнопки сброса";
                 }
             } else if (currentLimitType === 'count') {
-                // SLIDING TRADE LIMIT BANNER (Specifications 2.3 & 2.4)
                 const minLeft = getRemainingMin(risk.rate_until);
                 banner.className = "p-5 rounded-2xl border bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
@@ -1326,7 +1397,6 @@
 
                 startSmartTimer(risk.rate_until);
             } else if (currentLimitType === 'break' || currentLimitType === 'session') {
-                // MANUAL BREAK / SESSION LOCK
                 const minLeft = getRemainingMin(risk.unlock_at);
                 banner.className = "p-5 rounded-2xl border bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
@@ -1337,7 +1407,6 @@
 
                 startSmartTimer(risk.unlock_at);
             } else if (currentLimitType === 'asia') {
-                // ASIA LOCK
                 const minLeft = getRemainingMin(risk.asia_until);
                 banner.className = "p-5 rounded-2xl border bg-indigo-950/40 border-indigo-500/40 shadow-lg shadow-indigo-950/30";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 animate-subtle-pulse";
@@ -1348,7 +1417,6 @@
 
                 startSmartTimer(risk.asia_until);
             } else {
-                // HARD LOSS / PROFIT / TRAIL LIMITS
                 banner.className = "p-5 rounded-2xl border bg-rose-950/40 border-rose-500/40 shadow-lg shadow-rose-950/30";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-subtle-pulse";
                 badge.innerText = (currentLimitType || 'RISK').toUpperCase() + " STOP";
@@ -1361,15 +1429,12 @@
                     statSub.innerText = "До 17:00 CT";
                 }
 
-                startSmartTimer(null, true); // Fallback to Chicago 17:00 close timer
+                startSmartTimer(null, true);
             }
 
             lucide.createIcons();
         }
 
-        // ==========================================
-        // CONSOLE TESTING HELPER (Specifications 4.3)
-        // ==========================================
         window.testRiskStatus = function(type = 'count') {
             const futureMs = Date.now() + 20 * 60 * 1000;
             const freeAtMs = Date.now() + 15 * 60 * 1000;
@@ -1396,7 +1461,6 @@
                 sample.stat_rate_used = 1;
             }
 
-            console.log(`[Testing UI] Simulating risk state: '${type}'`, sample);
             renderRiskStatus(sample);
         };
 
@@ -1892,6 +1956,7 @@
                     selectedTags: currentTagNames,
                     onChange: async (updatedTagNames) => {
                         await syncTagsWithDB(g.group_no, updatedTagNames);
+                        updateUntaggedButtonState(); // Пересчитываем значок после изменения тега
                     }
                 });
             }
