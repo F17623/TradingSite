@@ -566,6 +566,53 @@
         let allCalendarTrades = [];
         let selectedDayKey = null;
 
+        // Текущий вид журнала: 'month' | 'day' | 'untagged'.
+        // Нужен, чтобы переключатель "Графики" перерисовывал ИМЕННО текущий набор сделок,
+        // а не сбрасывал "Без тегов" на все сделки месяца.
+        let currentJournalView = { type: 'month' };
+        let currentJournalTitle = '';
+        let currentJournalTrades = [];
+
+        // Supabase/PostgREST плохо переносит очень длинные .in(...) и большие пакеты signed URL.
+        // Режем на безопасные порции.
+        const DB_IN_CHUNK_SIZE = 100;
+        const SIGNED_URL_CHUNK_SIZE = 100;
+
+        function chunkArray(items, size) {
+            const result = [];
+            for (let i = 0; i < items.length; i += size) {
+                result.push(items.slice(i, i + size));
+            }
+            return result;
+        }
+
+        // Возвращает Set групп, у которых есть хотя бы один тег.
+        // Запросы идут порциями, иначе на большом наборе "Без тегов" (3 месяца)
+        // .in(...) может молча упасть, и ВСЕ группы ошибочно считаются без тегов.
+        async function fetchTaggedGroups(groupNos) {
+            const taggedGroups = new Set();
+            if (!supabaseClient || !groupNos || groupNos.length === 0) return taggedGroups;
+
+            for (const chunk of chunkArray(groupNos, DB_IN_CHUNK_SIZE)) {
+                const { data, error } = await supabaseClient
+                    .from('trade_journal')
+                    .select('group_no, trade_tags(tag_id)')
+                    .in('group_no', chunk);
+
+                if (error) {
+                    console.error('Ошибка чтения тегов для порции групп:', error);
+                    continue;
+                }
+
+                (data || []).forEach(item => {
+                    if (item.trade_tags && item.trade_tags.length > 0) {
+                        taggedGroups.add(Number(item.group_no));
+                    }
+                });
+            }
+            return taggedGroups;
+        }
+
         let showSnapshots = localStorage.getItem('showSnapshots') !== 'false';
         let cachedTags = []; 
         let allFirms = [];
@@ -853,7 +900,7 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        function switchTab(tabName) {
+        function switchTab(tabName, options = {}) {
             ['dashboard', 'calendar', 'accounts'].forEach(t => {
                 document.getElementById('view' + t.charAt(0).toUpperCase() + t.slice(1)).classList.add('hidden');
                 document.getElementById('nav' + t.charAt(0).toUpperCase() + t.slice(1)).className = "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800/60 transition-all";
@@ -862,7 +909,13 @@
             document.getElementById('nav' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).className = "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white shadow-sm transition-all";
             
             if (tabName === 'calendar') {
-                renderCalendar();
+                // При переходе в "Без тегов" не рисуем сначала весь месяц:
+                // это создаёт гонку и может перетереть нужный отфильтрованный набор.
+                if (options.skipJournalRender) {
+                    renderCalendarGridOnly();
+                } else {
+                    renderCalendar();
+                }
                 fetchFreeSnapshots();
                 updateUntaggedButtonState();
             }
@@ -883,33 +936,24 @@
         // ИСПРАВЛЕННАЯ ФУНКЦИЯ: СДЕЛКИ БЕЗ ТЕГОВ
         // ==========================================
         async function jumpToUntaggedTrades() {
-            switchTab('calendar');
+            // Не запускаем отрисовку всего месяца: сразу переходим к отфильтрованному набору.
+            switchTab('calendar', { skipJournalRender: true });
             if (!supabaseClient) return;
 
             const groupNos = [...new Set(allCalendarTrades.map(t => Number(t.group_no)).filter(Boolean))];
             if (groupNos.length === 0) {
+                currentJournalView = { type: 'untagged' };
                 await loadAndRenderDayJournal("Сделки без тегов (0)", []);
                 return;
             }
 
-            const { data: taggedData } = await supabaseClient
-                .from('trade_journal')
-                .select('group_no, trade_tags(tag_id)')
-                .in('group_no', groupNos);
-
-            const taggedGroups = new Set();
-            if (taggedData) {
-                taggedData.forEach(item => {
-                    if (item.trade_tags && item.trade_tags.length > 0) {
-                        taggedGroups.add(Number(item.group_no));
-                    }
-                });
-            }
+            const taggedGroups = await fetchTaggedGroups(groupNos);
 
             const untaggedGroupNos = groupNos.filter(gNo => !taggedGroups.has(gNo));
             const untaggedTrades = allCalendarTrades.filter(t => untaggedGroupNos.includes(Number(t.group_no)));
 
             selectedDayKey = null;
+            currentJournalView = { type: 'untagged' };
             renderCalendarGridOnly();
             
             // Вызываем полную отрисовку журнала с явным сохранением флага showSnapshots
@@ -933,19 +977,7 @@
                 return;
             }
 
-            const { data: taggedData } = await supabaseClient
-                .from('trade_journal')
-                .select('group_no, trade_tags(tag_id)')
-                .in('group_no', groupNos);
-
-            const taggedGroups = new Set();
-            if (taggedData) {
-                taggedData.forEach(item => {
-                    if (item.trade_tags && item.trade_tags.length > 0) {
-                        taggedGroups.add(Number(item.group_no));
-                    }
-                });
-            }
+            const taggedGroups = await fetchTaggedGroups(groupNos);
 
             const untaggedCount = groupNos.filter(gNo => !taggedGroups.has(gNo)).length;
             badge.innerText = untaggedCount;
@@ -1578,7 +1610,13 @@
         function toggleSnapshotsMode() {
             showSnapshots = !showSnapshots;
             localStorage.setItem('showSnapshots', showSnapshots);
-            if (selectedDayKey) {
+
+            // Перерисовываем ИМЕННО тот набор, который сейчас открыт.
+            // Раньше при selectedDayKey === null вызывался renderCalendar(),
+            // и фильтр "Без тегов" терялся — показывались все сделки месяца.
+            if (currentJournalView.type === 'untagged') {
+                loadAndRenderDayJournal(currentJournalTitle, currentJournalTrades);
+            } else if (selectedDayKey) {
                 const dayTrades = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey);
                 loadAndRenderDayJournal(selectedDayKey, dayTrades);
             } else {
@@ -1593,6 +1631,7 @@
             const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 
             if (!selectedDayKey) {
+                currentJournalView = { type: 'month' };
                 const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
                 const monthTrades = allCalendarTrades.filter(t => t.opened_at && tradingDay(new Date(t.opened_at)).startsWith(monthPrefix));
                 loadAndRenderDayJournal(`Все сделки за ${monthNames[month]} ${year}`, monthTrades);
@@ -1699,6 +1738,7 @@
 
         function selectCalendarDay(dateStr, trades) {
             selectedDayKey = dateStr;
+            currentJournalView = { type: 'day', dateStr };
             renderCalendarGridOnly();
             loadAndRenderDayJournal(`Сделки за день ${dateStr}`, trades);
             document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1706,6 +1746,11 @@
 
         async function loadAndRenderDayJournal(titleText, trades) {
             const thisToken = ++currentRenderToken;
+
+            // Запоминаем текущий набор, чтобы "Графики" и удаление снимка
+            // перерисовывали его же, а не сбрасывали фильтр.
+            currentJournalTitle = titleText;
+            currentJournalTrades = Array.isArray(trades) ? trades.slice() : [];
 
             const titleEl = document.getElementById('selectedDayTitle');
             const container = document.getElementById('dayTradesContainer');
@@ -1762,24 +1807,40 @@
             if (supabaseClient && groupKeys.length > 0) {
                 const numericGroupKeys = groupKeys.map(Number);
 
-                const [jRes, tsRes, snapRes] = await Promise.all([
-                    supabaseClient.from('trade_journal').select('group_no, note, trade_tags(tags(id, name))').in('group_no', numericGroupKeys),
-                    supabaseClient.from('trade_shots').select('id, group_no, storage_path, kind, taken_at').in('group_no', numericGroupKeys),
-                    supabaseClient.from('snapshots').select('id, group_no, storage_path, taken_at, note').in('group_no', numericGroupKeys)
-                ]);
+                const journalRows = [];
+                const shotsRows = [];
+                const snapshotRows = [];
 
-                if (thisToken !== currentRenderToken) return;
+                // Дробим .in(...) на порции. На наборе "Без тегов" (3 месяца)
+                // один общий запрос мог превысить лимит URL и молча вернуть ошибку,
+                // из-за чего снимки не подгружались вовсе.
+                for (const chunk of chunkArray(numericGroupKeys, DB_IN_CHUNK_SIZE)) {
+                    const [jRes, tsRes, snapRes] = await Promise.all([
+                        supabaseClient.from('trade_journal').select('group_no, note, trade_tags(tags(id, name))').in('group_no', chunk),
+                        supabaseClient.from('trade_shots').select('id, group_no, storage_path, kind, taken_at').in('group_no', chunk),
+                        supabaseClient.from('snapshots').select('id, group_no, storage_path, taken_at, note').in('group_no', chunk)
+                    ]);
 
-                if (jRes.data) {
-                    jRes.data.forEach(j => {
-                        tagsDBData[j.group_no] = j.trade_tags ? j.trade_tags.map(tt => tt.tags) : [];
-                        notesDBData[j.group_no] = j.note || '';
-                    });
+                    if (thisToken !== currentRenderToken) return;
+
+                    if (jRes.error) console.error('Ошибка чтения журнала (порция):', jRes.error);
+                    else if (jRes.data) journalRows.push(...jRes.data);
+
+                    if (tsRes.error) console.error('Ошибка чтения снимков сделок (порция):', tsRes.error);
+                    else if (tsRes.data) shotsRows.push(...tsRes.data);
+
+                    if (snapRes.error) console.error('Ошибка чтения snapshots (порция):', snapRes.error);
+                    else if (snapRes.data) snapshotRows.push(...snapRes.data);
                 }
 
+                journalRows.forEach(j => {
+                    tagsDBData[j.group_no] = j.trade_tags ? j.trade_tags.map(tt => tt.tags) : [];
+                    notesDBData[j.group_no] = j.note || '';
+                });
+
                 numericGroupKeys.forEach(gNo => {
-                    const groupShots = (tsRes.data || []).filter(s => Number(s.group_no) === gNo);
-                    const groupSnaps = (snapRes.data || []).filter(s => Number(s.group_no) === gNo).map(s => ({
+                    const groupShots = shotsRows.filter(s => Number(s.group_no) === gNo);
+                    const groupSnaps = snapshotRows.filter(s => Number(s.group_no) === gNo).map(s => ({
                         id: s.id,
                         group_no: s.group_no,
                         storage_path: s.storage_path,
@@ -1809,11 +1870,19 @@
 
             const signedUrlsMap = {};
             if (showSnapshots && allPaths.length > 0 && supabaseClient) {
-                const { data: signedData } = await supabaseClient.storage.from('shots').createSignedUrls(allPaths, 3600);
-                if (signedData) {
-                    signedData.forEach(item => {
-                        if (item.path && item.signedUrl) signedUrlsMap[item.path] = item.signedUrl;
-                    });
+                const uniquePaths = [...new Set(allPaths)];
+                for (const chunk of chunkArray(uniquePaths, SIGNED_URL_CHUNK_SIZE)) {
+                    const { data: signedData, error } = await supabaseClient.storage.from('shots').createSignedUrls(chunk, 3600);
+                    if (error) {
+                        console.error('Ошибка подписи URL снимков (порция):', error);
+                        continue;
+                    }
+                    if (signedData) {
+                        signedData.forEach(item => {
+                            if (item.path && item.signedUrl) signedUrlsMap[item.path] = item.signedUrl;
+                        });
+                    }
+                    if (thisToken !== currentRenderToken) return;
                 }
             }
 
@@ -2226,7 +2295,13 @@
         function reloadCurrentDayJournal() {
             const scrollY = window.scrollY;
 
-            if (selectedDayKey) {
+            if (currentJournalView.type === 'untagged') {
+                loadAndRenderDayJournal(currentJournalTitle, currentJournalTrades).then(() => {
+                    requestAnimationFrame(() => {
+                        window.scrollTo(0, scrollY);
+                    });
+                });
+            } else if (selectedDayKey) {
                 const dayTrades = allCalendarTrades.filter(
                     t => tradingDay(new Date(t.opened_at)) === selectedDayKey
                 );
