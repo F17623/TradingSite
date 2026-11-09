@@ -882,41 +882,46 @@
         // ==========================================
         // НОВАЯ ФУНКЦИЯ: СДЕЛКИ БЕЗ ТЕГОВ
         // ==========================================
-        async function jumpToUntaggedTrades() {
-            switchTab('calendar');
-            if (!supabaseClient) return;
+   async function jumpToUntaggedTrades() {
+    switchTab('calendar');
+    if (!supabaseClient) return;
 
-            // Получаем уникальные group_no из загруженных сделок за последние 3 месяца
-            const groupNos = [...new Set(allCalendarTrades.map(t => Number(t.group_no)).filter(Boolean))];
-            if (groupNos.length === 0) {
-                loadAndRenderDayJournal("Сделки без тегов (0)", []);
-                return;
+    const groupNos = [...new Set(allCalendarTrades.map(t => Number(t.group_no)).filter(Boolean))];
+    if (groupNos.length === 0) {
+        loadAndRenderDayJournal("Сделки без тегов (0)", []);
+        return;
+    }
+
+    const { data: taggedData } = await supabaseClient
+        .from('trade_journal')
+        .select('group_no, trade_tags(tag_id)')
+        .in('group_no', groupNos);
+
+    const taggedGroups = new Set();
+    if (taggedData) {
+        taggedData.forEach(item => {
+            if (item.trade_tags && item.trade_tags.length > 0) {
+                taggedGroups.add(Number(item.group_no));
             }
+        });
+    }
 
-            // Узнаем, у каких group_no есть теги в таблице trade_journal / trade_tags
-            const { data: taggedData } = await supabaseClient
-                .from('trade_journal')
-                .select('group_no, trade_tags(tag_id)')
-                .in('group_no', groupNos);
+    const untaggedGroupNos = groupNos.filter(gNo => !taggedGroups.has(gNo));
+    const untaggedTrades = allCalendarTrades.filter(t => untaggedGroupNos.includes(Number(t.group_no)));
 
-            const taggedGroups = new Set();
-            if (taggedData) {
-                taggedData.forEach(item => {
-                    if (item.trade_tags && item.trade_tags.length > 0) {
-                        taggedGroups.add(Number(item.group_no));
-                    }
-                });
-            }
+    selectedDayKey = null;
+    renderCalendarGridOnly();
+    
+    // Вызываем отрисовку и после её завершения делаем короткую микропаузу 
+    // для корректного монтирования блоков графиков в DOM
+    await loadAndRenderDayJournal(`Сделки без тегов (${untaggedGroupNos.length})`, untaggedTrades);
+    
+    setTimeout(() => {
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }, 50);
 
-            // Отбираем только те сделки (группы), у которых нет тегов
-            const untaggedGroupNos = groupNos.filter(gNo => !taggedGroups.has(gNo));
-            const untaggedTrades = allCalendarTrades.filter(t => untaggedGroupNos.includes(Number(t.group_no)));
-
-            selectedDayKey = null; // сбрасываем выбор конкретного дня
-            renderCalendarGridOnly();
-            loadAndRenderDayJournal(`Сделки без тегов (${untaggedGroupNos.length})`, untaggedTrades);
-            document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
+    document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
 
         async function updateUntaggedButtonState() {
             if (!supabaseClient) return;
