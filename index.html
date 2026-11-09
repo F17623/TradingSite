@@ -162,7 +162,6 @@
                         </div>
                     </div>
 
-                    <!-- AMMO / SLOTS VISUAL CONTAINER -->
                     <div id="slotsVisualContainer" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800 shrink-0"></div>
                 </div>
 
@@ -255,7 +254,6 @@
                     </div>
                     
                     <div class="flex items-center gap-2 flex-wrap">
-                        <!-- БЫСТРАЯ КНОПКА: СДЕЛКИ БЕЗ ТЕГОВ -->
                         <button id="navUntaggedTrades" onclick="jumpToUntaggedTrades()" class="hidden px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm">
                             <i data-lucide="tag" class="w-3.5 h-3.5"></i>
                             <span>Без тегов</span>
@@ -560,7 +558,7 @@
         let tiltPanelTimer = null;
         let pollInterval = null;
         let currentLimitType = ''; 
-        let timeOffsetMs = 0; // serverNow - localNow
+        let timeOffsetMs = 0;
 
         let currentCalDate = new Date();
         let allCalendarTrades = [];
@@ -886,9 +884,6 @@
             selectCalendarDay(todayStr, todayTrades);
         }
 
-        // ==========================================
-        // ИСПРАВЛЕННАЯ ФУНКЦИЯ: СДЕЛКИ БЕЗ ТЕГОВ
-        // ==========================================
         async function jumpToUntaggedTrades() {
             switchTab('calendar');
             if (!supabaseClient) return;
@@ -917,7 +912,6 @@
             const untaggedGroupNos = groupNos.filter(gNo => !taggedGroups.has(gNo));
             const untaggedTrades = allCalendarTrades.filter(t => untaggedGroupNos.includes(Number(t.group_no)));
 
-            // Устанавливаем новое явное состояние для Untagged режима
             currentJournalState = {
                 mode: 'untagged',
                 title: `Сделки без тегов (${untaggedGroupNos.length})`,
@@ -926,7 +920,6 @@
             };
 
             renderCalendarGridOnly();
-            
             await loadAndRenderDayJournal(currentJournalState.title, currentJournalState.trades);
 
             setTimeout(() => {
@@ -1000,8 +993,8 @@
                 if (!labelEl || !timerEl || !dotEl) return;
 
                 const currentTotalSec = currentHour * 3600 + currentMin * 60 + currentSec;
-                const marketCloseSec = 16 * 3600; // 57600
-                const marketOpenSec = 17 * 3600;  // 61200
+                const marketCloseSec = 16 * 3600;
+                const marketOpenSec = 17 * 3600;
          
                 if (currentTotalSec >= marketCloseSec && currentTotalSec < marketOpenSec) {   
                     const secLeft = marketOpenSec - currentTotalSec;
@@ -1584,12 +1577,10 @@
             renderCalendar();
         }
 
-        // Явный выход в режим всего месяца
         function resetDaySelection() {
             renderCalendar();
         }
 
-        // ИСПРАВЛЕННАЯ ЛОГИКА ТУМБЛЕРА: Перерисовывает ТЕКУЩЕЕ состояние журналов
         function toggleSnapshotsMode() {
             showSnapshots = !showSnapshots;
             localStorage.setItem('showSnapshots', showSnapshots);
@@ -1726,6 +1717,7 @@
         }
 
         async function loadAndRenderDayJournal(titleText, trades) {
+            stopPolling();
             const thisToken = ++currentRenderToken;
 
             const titleEl = document.getElementById('selectedDayTitle');
@@ -1747,6 +1739,7 @@
             if (!trades || trades.length === 0) {
                 container.innerHTML = '';
                 emptyState.classList.remove('hidden');
+                startPolling();
                 return;
             }
             emptyState.classList.add('hidden');
@@ -1790,8 +1783,6 @@
                     supabaseClient.from('snapshots').select('id, group_no, storage_path, taken_at, note').in('group_no', numericGroupKeys)
                 ]);
 
-                if (thisToken !== currentRenderToken) return;
-
                 if (jRes.data) {
                     jRes.data.forEach(j => {
                         tagsDBData[j.group_no] = j.trade_tags ? j.trade_tags.map(tt => tt.tags) : [];
@@ -1822,8 +1813,6 @@
                 });
             }
 
-            if (thisToken !== currentRenderToken) return;
-
             const allPaths = [];
             Object.values(shotsDBData).forEach(arr => {
                 arr.forEach(s => { if (s.storage_path) allPaths.push(s.storage_path); });
@@ -1839,7 +1828,10 @@
                 }
             }
 
-            if (thisToken !== currentRenderToken) return;
+            if (thisToken !== currentRenderToken) {
+                startPolling();
+                return;
+            }
 
             container.innerHTML = '';
 
@@ -1957,7 +1949,7 @@
                         </div>
                     </div>
 
-                    <!-- ТЕГИ (УНИВЕРСАЛЬНЫЙ TAGPICKER) -->
+                    <!-- ТЕГИ -->
                     <div id="tag-picker-${g.group_no}"></div>
 
                     <!-- ЗАМЕТКА -->
@@ -1995,6 +1987,7 @@
 
             bindJournalEvents();
             lucide.createIcons();
+            startPolling();
         }
 
         async function syncTagsWithDB(groupNo, updatedTagNames) {
@@ -2245,7 +2238,6 @@
             });
         }
 
-        // ПЕРЕРИСОВКА СОХРАНЯЕТ ТЕКУЩИЕ СДЕЛКИ
         function reloadCurrentDayJournal() {
             const scrollY = window.scrollY;
 
