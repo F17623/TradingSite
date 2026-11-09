@@ -1,0 +1,186 @@
+-- ============================================================
+--  ДИАГНОСТИКА: "Без тегов" и наличие графиков (снимков)
+--  Выполнять в Supabase -> SQL Editor (от имени владельца/сервиса,
+--  чтобы RLS не мешал; под anon view trade_summary может быть закрыт).
+-- ============================================================
+
+
+-- ------------------------------------------------------------
+-- 1) ОБЩАЯ СВОДКА по окну приложения (последние 3 месяца,
+--    без аккаунтов playback)
+-- ------------------------------------------------------------
+with win as (
+    select distinct group_no
+    from trade_summary
+    where group_no is not null
+      and opened_at >= date_trunc('month', now()) - interval '3 months'
+      and coalesce(account_name, '') not ilike 'playback%'
+),
+tagged as (
+    select distinct group_no from trade_tags where group_no is not null
+),
+imgs as (
+    select distinct group_no from trade_shots where group_no is not null
+    union
+    select distinct group_no from snapshots  where group_no is not null
+)
+select
+    count(*)                                                              as groups_total,
+    count(*) filter (where t.group_no is not null)                        as tagged,
+    count(*) filter (where t.group_no is null)                            as untagged,
+    count(*) filter (where t.group_no is null and i.group_no is not null) as untagged_with_img,
+    count(*) filter (where t.group_no is null and i.group_no is null)     as untagged_no_img,
+    count(*) filter (where t.group_no is not null and i.group_no is null) as tagged_no_img
+from win w
+left join tagged t on t.group_no = w.group_no
+left join imgs   i on i.group_no = w.group_no;
+
+
+-- ------------------------------------------------------------
+-- 2) РАЗБИВКА ПО МЕСЯЦАМ
+-- ------------------------------------------------------------
+with win as (
+    select distinct group_no,
+           to_char(date_trunc('month', opened_at), 'YYYY-MM') as month
+    from trade_summary
+    where group_no is not null
+      and opened_at >= date_trunc('month', now()) - interval '3 months'
+      and coalesce(account_name, '') not ilike 'playback%'
+),
+tagged as (
+    select distinct group_no from trade_tags where group_no is not null
+),
+imgs as (
+    select distinct group_no from trade_shots where group_no is not null
+    union
+    select distinct group_no from snapshots  where group_no is not null
+)
+select
+    w.month,
+    count(*)                                                              as groups,
+    count(*) filter (where t.group_no is null)                            as untagged,
+    count(*) filter (where t.group_no is null and i.group_no is not null) as untagged_with_img,
+    count(*) filter (where t.group_no is null and i.group_no is null)     as untagged_no_img
+from win w
+left join tagged t on t.group_no = w.group_no
+left join imgs   i on i.group_no = w.group_no
+group by w.month
+order by w.month;
+
+
+-- ------------------------------------------------------------
+-- 3) СПИСОК: сделки БЕЗ ТЕГОВ и БЕЗ ГРАФИКОВ
+--    (именно те, где картинок не будет по определению)
+-- ------------------------------------------------------------
+with win as (
+    select distinct group_no
+    from trade_summary
+    where group_no is not null
+      and opened_at >= date_trunc('month', now()) - interval '3 months'
+      and coalesce(account_name, '') not ilike 'playback%'
+),
+tagged as (
+    select distinct group_no from trade_tags where group_no is not null
+),
+imgs as (
+    select distinct group_no from trade_shots where group_no is not null
+    union
+    select distinct group_no from snapshots  where group_no is not null
+)
+select w.group_no
+from win w
+left join tagged t on t.group_no = w.group_no
+left join imgs   i on i.group_no = w.group_no
+where t.group_no is null
+  and i.group_no is null
+order by w.group_no desc;
+
+
+-- ------------------------------------------------------------
+-- 4) СКОЛЬКО ГРАФИКОВ У КАЖДОЙ СДЕЛКИ БЕЗ ТЕГОВ (0 / 1 / 2-3 / 4+)
+-- ------------------------------------------------------------
+with win as (
+    select distinct group_no
+    from trade_summary
+    where group_no is not null
+      and opened_at >= date_trunc('month', now()) - interval '3 months'
+      and coalesce(account_name, '') not ilike 'playback%'
+),
+tagged as (
+    select distinct group_no from trade_tags where group_no is not null
+),
+cnt as (
+    select group_no, count(*) as n from trade_shots where group_no is not null group by group_no
+    union all
+    select group_no, count(*) as n from snapshots  where group_no is not null group by group_no
+),
+imgs as (
+    select group_no, sum(n) as n from cnt group by group_no
+)
+select
+    case when coalesce(i.n, 0) = 0 then '0'
+         when i.n = 1 then '1'
+         when i.n between 2 and 3 then '2-3'
+         else '4+' end as images,
+    count(*) as groups
+from win w
+left join tagged t on t.group_no = w.group_no
+left join imgs   i on i.group_no = w.group_no
+where t.group_no is null
+group by 1
+order by 1;
+
+
+-- ------------------------------------------------------------
+-- 5) ПРОВЕРКА ЦЕЛОСТНОСТИ: "битые" записи о графиках
+-- ------------------------------------------------------------
+select 'trade_shots: пустой storage_path' as problem, count(*) as rows
+from trade_shots where coalesce(storage_path, '') = ''
+union all
+select 'snapshots: пустой storage_path', count(*)
+from snapshots where coalesce(storage_path, '') = ''
+union all
+select 'trade_shots: group_no вне trade_summary', count(*)
+from trade_shots s
+where s.group_no is not null
+  and not exists (select 1 from trade_summary ts where ts.group_no = s.group_no)
+union all
+select 'snapshots: group_no вне trade_summary', count(*)
+from snapshots s
+where s.group_no is not null
+  and not exists (select 1 from trade_summary ts where ts.group_no = s.group_no);
+
+
+-- ------------------------------------------------------------
+-- 6) ПО КАЖДОЙ СДЕЛКЕ ОКНА: теги / число графиков / вердикт
+--    (удобно выгрузить в CSV и посмотреть глазами)
+-- ------------------------------------------------------------
+with win as (
+    select distinct group_no
+    from trade_summary
+    where group_no is not null
+      and opened_at >= date_trunc('month', now()) - interval '3 months'
+      and coalesce(account_name, '') not ilike 'playback%'
+),
+tagged as (
+    select distinct group_no from trade_tags where group_no is not null
+),
+cnt as (
+    select group_no, count(*) as n from trade_shots where group_no is not null group by group_no
+    union all
+    select group_no, count(*) as n from snapshots  where group_no is not null group by group_no
+),
+imgs as (
+    select group_no, sum(n) as n from cnt group by group_no
+)
+select
+    w.group_no,
+    (t.group_no is not null)          as has_tags,
+    coalesce(i.n, 0)                  as images,
+    case when t.group_no is null and coalesce(i.n,0) = 0 then 'БЕЗ ТЕГОВ + БЕЗ КАРТИНОК'
+         when t.group_no is null then 'без тегов, есть графики'
+         else 'с тегами' end          as verdict
+from win w
+left join tagged t on t.group_no = w.group_no
+left join imgs   i on i.group_no = w.group_no
+order by w.group_no desc;
