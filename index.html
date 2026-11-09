@@ -162,6 +162,7 @@
                         </div>
                     </div>
 
+                    <!-- AMMO / SLOTS VISUAL CONTAINER -->
                     <div id="slotsVisualContainer" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800 shrink-0"></div>
                 </div>
 
@@ -254,6 +255,7 @@
                     </div>
                     
                     <div class="flex items-center gap-2 flex-wrap">
+                        <!-- БЫСТРАЯ КНОПКА: СДЕЛКИ БЕЗ ТЕГОВ -->
                         <button id="navUntaggedTrades" onclick="jumpToUntaggedTrades()" class="hidden px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold transition-all flex items-center gap-1.5 shadow-sm">
                             <i data-lucide="tag" class="w-3.5 h-3.5"></i>
                             <span>Без тегов</span>
@@ -558,18 +560,11 @@
         let tiltPanelTimer = null;
         let pollInterval = null;
         let currentLimitType = ''; 
-        let timeOffsetMs = 0;
+        let timeOffsetMs = 0; // serverNow - localNow
 
         let currentCalDate = new Date();
         let allCalendarTrades = [];
-
-        // ЕДИНОЕ СОСТОЯНИЕ ЖУРНАЛА (SOURCE OF TRUTH)
-        let currentJournalState = {
-            mode: 'month', // 'month' | 'day' | 'untagged'
-            title: '',
-            trades: [],
-            dayKey: null
-        };
+        let selectedDayKey = null;
 
         let showSnapshots = localStorage.getItem('showSnapshots') !== 'false';
         let cachedTags = []; 
@@ -884,13 +879,15 @@
             selectCalendarDay(todayStr, todayTrades);
         }
 
+        // ==========================================
+        // ИСПРАВЛЕННАЯ ФУНКЦИЯ: СДЕЛКИ БЕЗ ТЕГОВ
+        // ==========================================
         async function jumpToUntaggedTrades() {
             switchTab('calendar');
             if (!supabaseClient) return;
 
             const groupNos = [...new Set(allCalendarTrades.map(t => Number(t.group_no)).filter(Boolean))];
             if (groupNos.length === 0) {
-                currentJournalState = { mode: 'untagged', title: "Сделки без тегов (0)", trades: [], dayKey: null };
                 await loadAndRenderDayJournal("Сделки без тегов (0)", []);
                 return;
             }
@@ -912,15 +909,11 @@
             const untaggedGroupNos = groupNos.filter(gNo => !taggedGroups.has(gNo));
             const untaggedTrades = allCalendarTrades.filter(t => untaggedGroupNos.includes(Number(t.group_no)));
 
-            currentJournalState = {
-                mode: 'untagged',
-                title: `Сделки без тегов (${untaggedGroupNos.length})`,
-                trades: untaggedTrades,
-                dayKey: null
-            };
-
+            selectedDayKey = null;
             renderCalendarGridOnly();
-            await loadAndRenderDayJournal(currentJournalState.title, currentJournalState.trades);
+            
+            // Вызываем полную отрисовку журнала с явным сохранением флага showSnapshots
+            await loadAndRenderDayJournal(`Сделки без тегов (${untaggedGroupNos.length})`, untaggedTrades);
 
             setTimeout(() => {
                 if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -993,8 +986,8 @@
                 if (!labelEl || !timerEl || !dotEl) return;
 
                 const currentTotalSec = currentHour * 3600 + currentMin * 60 + currentSec;
-                const marketCloseSec = 16 * 3600;
-                const marketOpenSec = 17 * 3600;
+                const marketCloseSec = 16 * 3600; // 57600
+                const marketOpenSec = 17 * 3600;  // 61200
          
                 if (currentTotalSec >= marketCloseSec && currentTotalSec < marketOpenSec) {   
                     const secLeft = marketOpenSec - currentTotalSec;
@@ -1083,7 +1076,7 @@
             const password = document.getElementById('loginPassword').value;
             const btn = document.getElementById('loginBtn');
             showLoginError('');
-            btn.disabled = true; btn.innerText = 'Войти...';
+            btn.disabled = true; btn.innerText = 'Вход...';
             try {
                 const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
                 if (error) throw error;
@@ -1578,13 +1571,19 @@
         }
 
         function resetDaySelection() {
+            selectedDayKey = null;
             renderCalendar();
         }
 
         function toggleSnapshotsMode() {
             showSnapshots = !showSnapshots;
             localStorage.setItem('showSnapshots', showSnapshots);
-            loadAndRenderDayJournal(currentJournalState.title, currentJournalState.trades);
+            if (selectedDayKey) {
+                const dayTrades = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === selectedDayKey);
+                loadAndRenderDayJournal(selectedDayKey, dayTrades);
+            } else {
+                renderCalendar();
+            }
         }
 
         function renderCalendar() {
@@ -1593,17 +1592,11 @@
             const month = currentCalDate.getMonth();
             const monthNames = ["Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
 
-            const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
-            const monthTrades = allCalendarTrades.filter(t => t.opened_at && tradingDay(new Date(t.opened_at)).startsWith(monthPrefix));
-
-            currentJournalState = {
-                mode: 'month',
-                title: `Все сделки за ${monthNames[month]} ${year}`,
-                trades: monthTrades,
-                dayKey: null
-            };
-
-            loadAndRenderDayJournal(currentJournalState.title, currentJournalState.trades);
+            if (!selectedDayKey) {
+                const monthPrefix = `${year}-${String(month + 1).padStart(2, '0')}`;
+                const monthTrades = allCalendarTrades.filter(t => t.opened_at && tradingDay(new Date(t.opened_at)).startsWith(monthPrefix));
+                loadAndRenderDayJournal(`Все сделки за ${monthNames[month]} ${year}`, monthTrades);
+            }
         }
 
         function renderCalendarGridOnly() {
@@ -1674,7 +1667,7 @@
                     }
                 }
 
-                if (currentJournalState.mode === 'day' && currentJournalState.dayKey === dateStr) {
+                if (selectedDayKey === dateStr) {
                     bgClass += " ring-2 ring-indigo-500 shadow-lg shadow-indigo-500/10";
                 }
 
@@ -1705,19 +1698,13 @@
         }
 
         function selectCalendarDay(dateStr, trades) {
-            currentJournalState = {
-                mode: 'day',
-                title: `Сделки за день ${dateStr}`,
-                trades: trades,
-                dayKey: dateStr
-            };
+            selectedDayKey = dateStr;
             renderCalendarGridOnly();
-            loadAndRenderDayJournal(currentJournalState.title, currentJournalState.trades);
+            loadAndRenderDayJournal(`Сделки за день ${dateStr}`, trades);
             document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
         async function loadAndRenderDayJournal(titleText, trades) {
-            stopPolling();
             const thisToken = ++currentRenderToken;
 
             const titleEl = document.getElementById('selectedDayTitle');
@@ -1727,7 +1714,6 @@
             if (titleEl) titleEl.innerText = titleText;
             DocumentTagPickerHandler.instances.forEach(p => p.destroy());
             DocumentTagPickerHandler.instances.clear();
-
             let dayPnL = 0;
             if (trades) {
                 trades.forEach(t => {
@@ -1739,7 +1725,6 @@
             if (!trades || trades.length === 0) {
                 container.innerHTML = '';
                 emptyState.classList.remove('hidden');
-                startPolling();
                 return;
             }
             emptyState.classList.add('hidden');
@@ -1783,6 +1768,8 @@
                     supabaseClient.from('snapshots').select('id, group_no, storage_path, taken_at, note').in('group_no', numericGroupKeys)
                 ]);
 
+                if (thisToken !== currentRenderToken) return;
+
                 if (jRes.data) {
                     jRes.data.forEach(j => {
                         tagsDBData[j.group_no] = j.trade_tags ? j.trade_tags.map(tt => tt.tags) : [];
@@ -1813,6 +1800,8 @@
                 });
             }
 
+            if (thisToken !== currentRenderToken) return;
+
             const allPaths = [];
             Object.values(shotsDBData).forEach(arr => {
                 arr.forEach(s => { if (s.storage_path) allPaths.push(s.storage_path); });
@@ -1828,10 +1817,7 @@
                 }
             }
 
-            if (thisToken !== currentRenderToken) {
-                startPolling();
-                return;
-            }
+            if (thisToken !== currentRenderToken) return;
 
             container.innerHTML = '';
 
@@ -1949,7 +1935,7 @@
                         </div>
                     </div>
 
-                    <!-- ТЕГИ -->
+                    <!-- ТЕГИ (УНИВЕРСАЛЬНЫЙ TAGPICKER) -->
                     <div id="tag-picker-${g.group_no}"></div>
 
                     <!-- ЗАМЕТКА -->
@@ -1987,7 +1973,6 @@
 
             bindJournalEvents();
             lucide.createIcons();
-            startPolling();
         }
 
         async function syncTagsWithDB(groupNo, updatedTagNames) {
@@ -2241,14 +2226,22 @@
         function reloadCurrentDayJournal() {
             const scrollY = window.scrollY;
 
-            loadAndRenderDayJournal(
-                currentJournalState.title,
-                currentJournalState.trades
-            ).then(() => {
-                requestAnimationFrame(() => {
-                    window.scrollTo(0, scrollY);
+            if (selectedDayKey) {
+                const dayTrades = allCalendarTrades.filter(
+                    t => tradingDay(new Date(t.opened_at)) === selectedDayKey
+                );
+
+                loadAndRenderDayJournal(
+                    `Сделки за день ${selectedDayKey}`,
+                    dayTrades
+                ).then(() => {
+                    requestAnimationFrame(() => {
+                        window.scrollTo(0, scrollY);
+                    });
                 });
-            });
+            } else {
+                renderCalendar();
+            }
         }
 
         function renderHeaderControls(pnl) {
@@ -2429,7 +2422,7 @@
             document.getElementById('resetDate').value = new Date().toISOString().slice(0, 10);
             document.getElementById('resetModal').classList.remove('hidden');
         }
-        function closeResetModal() { document.getElementById('resetAccountId').value = ''; }
+        function closeResetModal() { document.getElementById('resetModal').classList.add('hidden'); }
 
         async function handleCreateReset(e) {
             e.preventDefault();
