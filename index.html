@@ -880,48 +880,47 @@
         }
 
         // ==========================================
-        // НОВАЯ ФУНКЦИЯ: СДЕЛКИ БЕЗ ТЕГОВ
+        // ИСПРАВЛЕННАЯ ФУНКЦИЯ: СДЕЛКИ БЕЗ ТЕГОВ
         // ==========================================
-   async function jumpToUntaggedTrades() {
-    switchTab('calendar');
-    if (!supabaseClient) return;
+        async function jumpToUntaggedTrades() {
+            switchTab('calendar');
+            if (!supabaseClient) return;
 
-    const groupNos = [...new Set(allCalendarTrades.map(t => Number(t.group_no)).filter(Boolean))];
-    if (groupNos.length === 0) {
-        loadAndRenderDayJournal("Сделки без тегов (0)", []);
-        return;
-    }
-
-    const { data: taggedData } = await supabaseClient
-        .from('trade_journal')
-        .select('group_no, trade_tags(tag_id)')
-        .in('group_no', groupNos);
-
-    const taggedGroups = new Set();
-    if (taggedData) {
-        taggedData.forEach(item => {
-            if (item.trade_tags && item.trade_tags.length > 0) {
-                taggedGroups.add(Number(item.group_no));
+            const groupNos = [...new Set(allCalendarTrades.map(t => Number(t.group_no)).filter(Boolean))];
+            if (groupNos.length === 0) {
+                await loadAndRenderDayJournal("Сделки без тегов (0)", []);
+                return;
             }
-        });
-    }
 
-    const untaggedGroupNos = groupNos.filter(gNo => !taggedGroups.has(gNo));
-    const untaggedTrades = allCalendarTrades.filter(t => untaggedGroupNos.includes(Number(t.group_no)));
+            const { data: taggedData } = await supabaseClient
+                .from('trade_journal')
+                .select('group_no, trade_tags(tag_id)')
+                .in('group_no', groupNos);
 
-    selectedDayKey = null;
-    renderCalendarGridOnly();
-    
-    // Вызываем отрисовку и после её завершения делаем короткую микропаузу 
-    // для корректного монтирования блоков графиков в DOM
-    await loadAndRenderDayJournal(`Сделки без тегов (${untaggedGroupNos.length})`, untaggedTrades);
-    
-    setTimeout(() => {
-        if (typeof lucide !== 'undefined') lucide.createIcons();
-    }, 50);
+            const taggedGroups = new Set();
+            if (taggedData) {
+                taggedData.forEach(item => {
+                    if (item.trade_tags && item.trade_tags.length > 0) {
+                        taggedGroups.add(Number(item.group_no));
+                    }
+                });
+            }
 
-    document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
+            const untaggedGroupNos = groupNos.filter(gNo => !taggedGroups.has(gNo));
+            const untaggedTrades = allCalendarTrades.filter(t => untaggedGroupNos.includes(Number(t.group_no)));
+
+            selectedDayKey = null;
+            renderCalendarGridOnly();
+            
+            // Вызываем полную отрисовку журнала с явным сохранением флага showSnapshots
+            await loadAndRenderDayJournal(`Сделки без тегов (${untaggedGroupNos.length})`, untaggedTrades);
+
+            setTimeout(() => {
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }, 50);
+
+            document.getElementById('dayDetailsCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
 
         async function updateUntaggedButtonState() {
             if (!supabaseClient) return;
@@ -955,7 +954,6 @@
                 btn.classList.remove('hidden');
                 btn.classList.remove('opacity-45', 'pointer-events-none');
             } else {
-                // Если нет сделок без тегов — делаем кнопку неактивной/полупрозрачной
                 btn.classList.remove('hidden');
                 btn.classList.add('opacity-45', 'pointer-events-none');
             }
@@ -1402,24 +1400,22 @@
 
                 startSmartTimer(risk.rate_until);
             } else if (currentLimitType === 'break' || currentLimitType === 'session') {
-  
-					const minLeft = getRemainingMin(risk.unlock_at);
-						banner.className = "p-5 rounded-2xl border bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
-						badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
-						badge.innerText = currentLimitType.toUpperCase() + " LOCK";
-						title.innerText = currentLimitType === 'session' ? "СЕССИЯ ЗАКРЫТА" : "ТОРГОВЛЯ НА ПАУЗЕ";
-						title.className = "text-2xl font-black tracking-tight text-amber-300 pt-1";
-						desc.innerText = currentLimitType === 'session' 
-							? "Торговля заблокирована до конца сессии." 
-							: `Торговля заблокирована вручную. Пауза еще ${minLeft} мин.`;
+                const minLeft = getRemainingMin(risk.unlock_at);
+                banner.className = "p-5 rounded-2xl border bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
+                badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
+                badge.innerText = currentLimitType.toUpperCase() + " LOCK";
+                title.innerText = currentLimitType === 'session' ? "СЕССИЯ ЗАКРЫТА" : "ТОРГОВЛЯ НА ПАУЗЕ";
+                title.className = "text-2xl font-black tracking-tight text-amber-300 pt-1";
+                desc.innerText = currentLimitType === 'session' 
+                    ? "Торговля заблокирована до конца сессии." 
+                    : `Торговля заблокирована вручную. Пауза еще ${minLeft} мин.`;
 
-						if (statCard) {
-							statTitle.innerHTML = `<i data-lucide="timer" class="w-5 h-5 inline mr-1"></i><span class="text-amber-400">${currentLimitType === 'session' ? 'СЕССИЯ' : 'ПАУЗА'}</span>`;
-							statSub.innerText = `Еще ~${minLeft} мин`;
-						}
+                if (statCard) {
+                    statTitle.innerHTML = `<i data-lucide="timer" class="w-5 h-5 inline mr-1"></i><span class="text-amber-400">${currentLimitType === 'session' ? 'СЕССИЯ' : 'ПАУЗА'}</span>`;
+                    statSub.innerText = `Еще ~${minLeft} мин`;
+                }
 
-						startSmartTimer(risk.unlock_at);
-				
+                startSmartTimer(risk.unlock_at);
             } else if (currentLimitType === 'asia') {
                 const minLeft = getRemainingMin(risk.asia_until);
                 banner.className = "p-5 rounded-2xl border bg-indigo-950/40 border-indigo-500/40 shadow-lg shadow-indigo-950/30";
@@ -1716,8 +1712,8 @@
             const emptyState = document.getElementById('emptyDayTrades');
 
             if (titleEl) titleEl.innerText = titleText;
-			DocumentTagPickerHandler.instances.forEach(p => p.destroy());
-			DocumentTagPickerHandler.instances.clear();
+            DocumentTagPickerHandler.instances.forEach(p => p.destroy());
+            DocumentTagPickerHandler.instances.clear();
             let dayPnL = 0;
             if (trades) {
                 trades.forEach(t => {
@@ -1970,7 +1966,7 @@
                     selectedTags: currentTagNames,
                     onChange: async (updatedTagNames) => {
                         await syncTagsWithDB(g.group_no, updatedTagNames);
-                        updateUntaggedButtonState(); // Пересчитываем значок после изменения тега
+                        updateUntaggedButtonState();
                     }
                 });
             }
