@@ -1,0 +1,5 @@
+# TradeShot.txt: доступы для модуля TradeShot. Никому не пересылайте этот файл.
+# Формат: ключ = значение. Строки, начинающиеся с #, игнорируются.
+ShotUserEmail = fedorpi@gmail.com
+ShotUserPassword = -&6ikh5U?^MMU-L
+ObsPassword = nJM6uxWDBT4YotAc
