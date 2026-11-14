@@ -122,7 +122,7 @@
                 </div>
             </div>
 
-            <div id="statusBanner" class="p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-slate-900 border-slate-800">
+            <div id="statusBanner" class="p-5 rounded-2xl border transition-all duration-300 relative overflow-hidden bg-slate-900 border-slate-800 flex flex-col gap-3">
                 <div class="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div class="space-y-1">
                         <div class="flex items-center space-x-2">
@@ -142,6 +142,7 @@
                         </div>
                     </div>
                 </div>
+                <div id="bannerFooter" class="hidden"></div>
             </div>
 
             <!-- RISK & SLIDING SLOTS CONTROL PANEL -->
@@ -1275,8 +1276,6 @@
                 currentTradesCache = todayRows;
                 sortTrades(currentSortField, true);
                 renderCalendarGridOnly();
-                
-                // ИСПРАВЛЕНИЕ: updateUntaggedButtonState() убран отсюда (оставлен в fetchHistory)
 
                 syncStatus.today = true;
             } catch (err) {
@@ -1438,6 +1437,7 @@
             const badge = document.getElementById('bannerBadge');
             const title = document.getElementById('bannerTitle');
             const desc = document.getElementById('bannerDesc');
+            const bannerFooter = document.getElementById('bannerFooter');
             const statCard = document.getElementById('statProtectionCard');
             const statTitle = document.getElementById('statProtectionTitle');
             const statSub = document.getElementById('statProtectionSub');
@@ -1447,6 +1447,7 @@
             const slotsVisualContainer = document.getElementById('slotsVisualContainer');
 
             if (tiltPanelTimer) { clearInterval(tiltPanelTimer); tiltPanelTimer = null; }
+            if (bannerFooter) { bannerFooter.classList.add('hidden'); bannerFooter.innerHTML = ''; }
 
             const maxTrades = Number(risk.max_trades || 5);
             const usedRateSlots = Number(risk.stat_rate_used || 0);
@@ -1466,8 +1467,10 @@
             const peakFormatted = `${peakToday >= 0 ? '+$' : '-$'}${Math.abs(peakToday).toFixed(0)}`;
             subText.innerText = `За час: ${usedRateSlots} из ${maxTrades} · сегодня ${statTradesToday} · пик дня ${peakFormatted}${freeSlotInMinText}`;
 
-            if (currentLimitType === 'loss' || currentLimitType === 'profit') {
+            if (currentLimitType === 'loss') {
                 subText.className = "text-[11px] text-rose-400 font-bold font-mono";
+            } else if (currentLimitType === 'profit') {
+                subText.className = "text-[11px] text-emerald-400 font-bold font-mono";
             } else if (currentLimitType === 'count') {
                 subText.className = "text-[11px] text-amber-400 font-bold font-mono";
             } else {
@@ -1551,7 +1554,7 @@
 
             if (!risk.full_stop && !currentLimitType) {
                 tiltBadge.classList.add('hidden');
-                banner.className = "p-5 rounded-2xl border bg-emerald-950/35 border-emerald-500/30 shadow-lg shadow-emerald-950/20";
+                banner.className = "p-5 rounded-2xl border bg-emerald-950/35 border-emerald-500/30 shadow-lg shadow-emerald-950/20 flex flex-col gap-3";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
                 badge.innerText = "ALLOW";
                 title.innerText = "ТОРГОВЛЯ РАЗРЕШЕНА";
@@ -1563,7 +1566,7 @@
                 }
             } else if (currentLimitType === 'count') {
                 const minLeft = getRemainingMin(risk.rate_until);
-                banner.className = "p-5 rounded-2xl border bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
+                banner.className = "p-5 rounded-2xl border bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30 flex flex-col gap-3";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
                 badge.innerText = "COUNT STOP";
                 title.innerText = "ПАУЗА ПО ЛИМИТУ СДЕЛОК";
@@ -1578,7 +1581,7 @@
                 startSmartTimer(risk.rate_until);
             } else if (currentLimitType === 'break' || currentLimitType === 'session') {
                 const minLeft = getRemainingMin(risk.unlock_at);
-                banner.className = "p-5 rounded-2xl border bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30";
+                banner.className = "p-5 rounded-2xl border bg-amber-950/40 border-amber-500/40 shadow-lg shadow-amber-950/30 flex flex-col gap-3";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-300 border border-amber-500/30 animate-subtle-pulse";
                 badge.innerText = currentLimitType.toUpperCase() + " LOCK";
                 title.innerText = currentLimitType === 'session' ? "СЕССИЯ ЗАКРЫТА" : "ТОРГОВЛЯ НА ПАУЗЕ";
@@ -1595,7 +1598,7 @@
                 startSmartTimer(risk.unlock_at);
             } else if (currentLimitType === 'asia') {
                 const minLeft = getRemainingMin(risk.asia_until);
-                banner.className = "p-5 rounded-2xl border bg-indigo-950/40 border-indigo-500/40 shadow-lg shadow-indigo-950/30";
+                banner.className = "p-5 rounded-2xl border bg-indigo-950/40 border-indigo-500/40 shadow-lg shadow-indigo-950/30 flex flex-col gap-3";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 animate-subtle-pulse";
                 badge.innerText = "ASIA LOCK";
                 title.innerText = "АЗИАТСКАЯ СЕССИЯ ЗАКРЫТА";
@@ -1603,8 +1606,32 @@
                 desc.innerText = `Блокировка Азиатского диапазона еще ${minLeft} мин.`;
 
                 startSmartTimer(risk.asia_until);
+            } else if (currentLimitType === 'profit') {
+                banner.className = "p-5 rounded-2xl border bg-emerald-950/40 border-emerald-500/40 shadow-lg shadow-emerald-950/30 flex flex-col gap-3";
+                badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-subtle-pulse";
+                badge.innerText = "PROFIT STOP";
+                title.innerText = "ДНЕВНОЙ ЛИМИТ ПРИБЫЛИ ДОСТИГНУТ";
+                title.className = "text-2xl font-black tracking-tight text-emerald-300 pt-1";
+                desc.innerText = "Цель по прибыли выполнена. Торговля остановлена контроллером рисков до следующей сессии (17:00 CT).";
+
+                if (bannerFooter) {
+                    bannerFooter.className = "relative z-10 pt-3 border-t border-emerald-500/20";
+                    bannerFooter.innerHTML = `
+                        <div class="w-full px-4 py-2.5 rounded-xl bg-slate-950/60 border border-emerald-500/20 text-emerald-200/90 italic text-xs text-center md:text-left">
+                            «К концу дня у тебя будет только два варианта: или ты уйдёшь с ощущением, что оставил деньги на столе, или без денег.»
+                        </div>
+                    `;
+                    bannerFooter.classList.remove('hidden');
+                }
+
+                if (statCard) {
+                    statTitle.innerHTML = `<i data-lucide="lock" class="w-5 h-5 inline mr-1"></i><span class="text-emerald-400">ПРОФИТ LOCK</span>`;
+                    statSub.innerText = "До 17:00 CT";
+                }
+
+                startSmartTimer(null, true);
             } else {
-                banner.className = "p-5 rounded-2xl border bg-rose-950/40 border-rose-500/40 shadow-lg shadow-rose-950/30";
+                banner.className = "p-5 rounded-2xl border bg-rose-950/40 border-rose-500/40 shadow-lg shadow-rose-950/30 flex flex-col gap-3";
                 badge.className = "px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wider bg-rose-500/20 text-rose-300 border border-rose-500/30 animate-subtle-pulse";
                 badge.innerText = (currentLimitType || 'RISK').toUpperCase() + " STOP";
                 title.innerText = "ДНЕВНОЙ ЛИМИТ ИСЧЕРПАН";
