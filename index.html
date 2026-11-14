@@ -558,7 +558,19 @@
         let isDemoMode = false;
         let pendingActionType = null;
         let tiltPanelTimer = null;
-        let pollInterval = null;
+        
+        // Поллинг и флаги защиты от наложения
+        let riskInterval = null;
+        let todayInterval = null;
+        let historyInterval = null;
+        let riskBusy = false;
+        let todayBusy = false;
+        let historyBusy = false;
+        let lastHistoryFetchTime = 0;
+
+        // Объект статусов синхронизации
+        let syncStatus = { risk: true, today: true, history: true };
+
         let currentLimitType = ''; 
         let timeOffsetMs = 0; // serverNow - localNow
 
@@ -567,14 +579,10 @@
         let selectedDayKey = null;
 
         // Текущий вид журнала: 'month' | 'day' | 'untagged'.
-        // Нужен, чтобы переключатель "Графики" перерисовывал ИМЕННО текущий набор сделок,
-        // а не сбрасывал "Без тегов" на все сделки месяца.
         let currentJournalView = { type: 'month' };
         let currentJournalTitle = '';
         let currentJournalTrades = [];
 
-        // Supabase/PostgREST плохо переносит очень длинные .in(...) и большие пакеты signed URL.
-        // Режем на безопасные порции.
         const DB_IN_CHUNK_SIZE = 100;
         const SIGNED_URL_CHUNK_SIZE = 100;
 
@@ -586,9 +594,6 @@
             return result;
         }
 
-        // Возвращает Set групп, у которых есть хотя бы один тег.
-        // Запросы идут порциями, иначе на большом наборе "Без тегов" (3 месяца)
-        // .in(...) может молча упасть, и ВСЕ группы ошибочно считаются без тегов.
         async function fetchTaggedGroups(groupNos) {
             const taggedGroups = new Set();
             if (!supabaseClient || !groupNos || groupNos.length === 0) return taggedGroups;
@@ -909,8 +914,6 @@
             document.getElementById('nav' + tabName.charAt(0).toUpperCase() + tabName.slice(1)).className = "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-indigo-600 text-white shadow-sm transition-all";
             
             if (tabName === 'calendar') {
-                // При переходе в "Без тегов" не рисуем сначала весь месяц:
-                // это создаёт гонку и может перетереть нужный отфильтрованный набор.
                 if (options.skipJournalRender) {
                     renderCalendarGridOnly();
                 } else {
@@ -932,11 +935,7 @@
             selectCalendarDay(todayStr, todayTrades);
         }
 
-        // ==========================================
-        // ИСПРАВЛЕННАЯ ФУНКЦИЯ: СДЕЛКИ БЕЗ ТЕГОВ
-        // ==========================================
         async function jumpToUntaggedTrades() {
-            // Не запускаем отрисовку всего месяца: сразу переходим к отфильтрованному набору.
             switchTab('calendar', { skipJournalRender: true });
             if (!supabaseClient) return;
 
@@ -956,7 +955,6 @@
             currentJournalView = { type: 'untagged' };
             renderCalendarGridOnly();
             
-            // Вызываем полную отрисовку журнала с явным сохранением флага showSnapshots
             await loadAndRenderDayJournal(`Сделки без тегов (${untaggedGroupNos.length})`, untaggedTrades);
 
             setTimeout(() => {
@@ -1081,7 +1079,7 @@
                 else return;
                 if (res.error) throw res.error;
                 await fetchData();
-                updateSyncStatus('success');
+                refreshSyncIndicator();
             } catch (err) {
                 console.error('Ошибка блокировки:', err);
                 updateSyncStatus('error');
@@ -1191,23 +1189,30 @@
             `).join('');
         }
 
-        async function fetchData() {
-            updateSyncStatus('syncing');
-            if (isDemoMode || !supabaseClient) {
-                renderRiskStatus({ full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000, max_trades: 5, stat_rate_used: 0 });
-                renderTrades([]);
+        // ==========================================
+        // РАЗДЕЛЁННЫЕ ФУНКЦИИ ПОЛЛИНГА И СТАТУСОВ
+        // ==========================================
+
+        function refreshSyncIndicator() {
+            if (isDemoMode) {
                 updateSyncStatus('demo');
                 return;
             }
+            if (syncStatus.risk && syncStatus.today && syncStatus.history) {
+                updateSyncStatus('success');
+            } else {
+                updateSyncStatus('error');
+            }
+        }
 
+        async function fetchRisk() {
+            if (riskBusy) return;
+            riskBusy = true;
+            if (isDemoMode || !supabaseClient) {
+                riskBusy = false;
+                return;
+            }
             try {
-                try {
-                    const { data: serverTime, error: timeErr } = await supabaseClient.rpc('get_server_time');
-                    if (!timeErr && serverTime) {
-                        timeOffsetMs = new Date(serverTime).getTime() - Date.now();
-                    }
-                } catch (e) {}
-
                 const { data: riskData, error: riskErr } = await supabaseClient
                     .from('risk_control')
                     .select('*')
@@ -1215,8 +1220,83 @@
                     .single();
 
                 if (riskErr) throw riskErr;
+                renderRiskStatus(riskData);
+                syncStatus.risk = true;
+            } catch (err) {
+                console.error('Ошибка fetchRisk:', err);
+                syncStatus.risk = false;
+            } finally {
+                riskBusy = false;
+                refreshSyncIndicator();
+            }
+        }
 
-                allCalendarTrades = [];
+        async function fetchTodayTrades() {
+            if (todayBusy) return;
+            todayBusy = true;
+            if (isDemoMode || !supabaseClient) {
+                todayBusy = false;
+                return;
+            }
+            try {
+                const thirtyHoursAgo = new Date(Date.now() - 30 * 3600 * 1000).toISOString();
+                let rangeStart = 0;
+                let fetchMore = true;
+                const freshChunk = [];
+
+                while (fetchMore) {
+                    const { data: chunk, error } = await supabaseClient
+                        .from('trade_summary')
+                        .select('*')
+                        .gte('opened_at', thirtyHoursAgo)
+                        .order('opened_at', { ascending: false })
+                        .range(rangeStart, rangeStart + 999);
+
+                    if (error) throw error;
+
+                    if (chunk && chunk.length > 0) {
+                        freshChunk.push(...chunk);
+                        if (chunk.length < 1000) fetchMore = false;
+                        else rangeStart += 1000;
+                    } else {
+                        fetchMore = false;
+                    }
+                }
+
+                const filteredFresh = freshChunk.filter(t => t.opened_at &&
+                    !String(t.account_name || '').toLowerCase().startsWith('playback'));
+
+                allCalendarTrades = allCalendarTrades.filter(t => new Date(t.opened_at).getTime() < new Date(thirtyHoursAgo).getTime());
+                allCalendarTrades.push(...filteredFresh);
+
+                const today = tradingDay(new Date());
+                const todayRows = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === today);
+
+                currentTradesCache = todayRows;
+                sortTrades(currentSortField, true);
+                renderCalendarGridOnly();
+                
+                // ИСПРАВЛЕНИЕ: updateUntaggedButtonState() убран отсюда (оставлен в fetchHistory)
+
+                syncStatus.today = true;
+            } catch (err) {
+                console.error('Ошибка fetchTodayTrades:', err);
+                syncStatus.today = false;
+            } finally {
+                todayBusy = false;
+                refreshSyncIndicator();
+            }
+        }
+
+        async function fetchHistory() {
+            if (historyBusy) return;
+            historyBusy = true;
+            if (isDemoMode || !supabaseClient) {
+                historyBusy = false;
+                return;
+            }
+            try {
+                const historyTrades = [];
                 for (let i = 0; i < 3; i++) {
                     const d = new Date();
                     d.setMonth(d.getMonth() - i);
@@ -1228,7 +1308,7 @@
                     let rangeStart = 0;
                     let fetchMore = true;
                     while (fetchMore) {
-                        const { data: chunk } = await supabaseClient
+                        const { data: chunk, error } = await supabaseClient
                             .from('trade_summary')
                             .select('*')
                             .gte('opened_at', startStr)
@@ -1236,8 +1316,10 @@
                             .order('opened_at', { ascending: false })
                             .range(rangeStart, rangeStart + 999);
 
+                        if (error) throw error;
+
                         if (chunk && chunk.length > 0) {
-                            allCalendarTrades.push(...chunk);
+                            historyTrades.push(...chunk);
                             if (chunk.length < 1000) fetchMore = false;
                             else rangeStart += 1000;
                         } else {
@@ -1246,36 +1328,99 @@
                     }
                 }
 
-                allCalendarTrades = allCalendarTrades.filter(t => t.opened_at &&
+                allCalendarTrades = historyTrades.filter(t => t.opened_at &&
                     !String(t.account_name || '').toLowerCase().startsWith('playback'));
 
-                const today = tradingDay(new Date());
-                const todayRows = allCalendarTrades.filter(t => tradingDay(new Date(t.opened_at)) === today);
-
-                renderRiskStatus(riskData);
-                
-                currentTradesCache = todayRows;
-                sortTrades(currentSortField, true);
-
+                lastHistoryFetchTime = Date.now();
                 renderCalendarGridOnly();
                 populateFreeAssignDropdown();
-                updateUntaggedButtonState();
-
-                updateSyncStatus('success');
+                await updateUntaggedButtonState();
+                
+                syncStatus.history = true;
             } catch (err) {
-                console.error('Ошибка чтения из базы:', err);
-                updateSyncStatus('error');
+                console.error('Ошибка fetchHistory:', err);
+                syncStatus.history = false;
+            } finally {
+                historyBusy = false;
+                refreshSyncIndicator();
+            }
+        }
+
+        async function refreshServerTime() {
+            if (!supabaseClient) return;
+            try {
+                const { data: serverTime, error: timeErr } = await supabaseClient.rpc('get_server_time');
+                if (!timeErr && serverTime) {
+                    timeOffsetMs = new Date(serverTime).getTime() - Date.now();
+                }
+            } catch (e) {}
+        }
+
+        async function fetchData() {
+            updateSyncStatus('syncing');
+            if (isDemoMode || !supabaseClient) {
+                renderRiskStatus({ full_stop: false, limit_type: '', loss_limit: -1000, profit_limit: 1000, max_trades: 5, stat_rate_used: 0 });
+                renderTrades([]);
+                updateSyncStatus('demo');
+                return;
+            }
+
+            try {
+                await refreshServerTime();
+                await Promise.all([
+                    fetchRisk(),
+                    fetchTodayTrades(),
+                    fetchHistory()
+                ]);
+            } catch (err) {
+                console.error('Ошибка полного обновления fetchData:', err);
+            } finally {
+                refreshSyncIndicator();
             }
         }
 
         function startPolling() { 
-            if (!pollInterval) pollInterval = setInterval(fetchData, 10000);
+            stopPolling();
+            riskInterval = setInterval(() => {
+                if (!document.hidden) fetchRisk();
+            }, 10000);
+
+            todayInterval = setInterval(() => {
+                if (!document.hidden) fetchTodayTrades();
+            }, 10000);
+
+            historyInterval = setInterval(() => {
+                if (!document.hidden) {
+                    fetchHistory();
+                    refreshServerTime();
+                }
+            }, 300000); // 5 минут
+
+            document.addEventListener('visibilitychange', handleVisibilityChange);
         }
-        function stopPolling() { if (pollInterval) { clearInterval(pollInterval); pollInterval = null; } }
+
+        function stopPolling() { 
+            if (riskInterval) { clearInterval(riskInterval); riskInterval = null; }
+            if (todayInterval) { clearInterval(todayInterval); todayInterval = null; }
+            if (historyInterval) { clearInterval(historyInterval); historyInterval = null; }
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        }
+
+        async function handleVisibilityChange() {
+            if (!document.hidden) {
+                await fetchRisk();
+                await fetchTodayTrades();
+                if (Date.now() - lastHistoryFetchTime > 300000) {
+                    await fetchHistory();
+                    await refreshServerTime();
+                }
+            }
+        }
 
         function updateSyncStatus(state) {
             const dot = document.getElementById('syncDot');
             const text = document.getElementById('syncText');
+            if (!dot || !text) return;
             if (state === 'syncing') { dot.className = "w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"; text.innerText = "Обновление..."; }
             else if (state === 'success') { dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-500"; text.innerText = "Синхронизировано"; }
             else if (state === 'demo') { dot.className = "w-1.5 h-1.5 rounded-full bg-indigo-400"; text.innerText = "Демо режим"; }
@@ -1611,9 +1756,6 @@
             showSnapshots = !showSnapshots;
             localStorage.setItem('showSnapshots', showSnapshots);
 
-            // Перерисовываем ИМЕННО тот набор, который сейчас открыт.
-            // Раньше при selectedDayKey === null вызывался renderCalendar(),
-            // и фильтр "Без тегов" терялся — показывались все сделки месяца.
             if (currentJournalView.type === 'untagged') {
                 loadAndRenderDayJournal(currentJournalTitle, currentJournalTrades);
             } else if (selectedDayKey) {
@@ -1747,8 +1889,6 @@
         async function loadAndRenderDayJournal(titleText, trades) {
             const thisToken = ++currentRenderToken;
 
-            // Запоминаем текущий набор, чтобы "Графики" и удаление снимка
-            // перерисовывали его же, а не сбрасывали фильтр.
             currentJournalTitle = titleText;
             currentJournalTrades = Array.isArray(trades) ? trades.slice() : [];
 
@@ -1811,9 +1951,6 @@
                 const shotsRows = [];
                 const snapshotRows = [];
 
-                // Дробим .in(...) на порции. На наборе "Без тегов" (3 месяца)
-                // один общий запрос мог превысить лимит URL и молча вернуть ошибку,
-                // из-за чего снимки не подгружались вовсе.
                 for (const chunk of chunkArray(numericGroupKeys, DB_IN_CHUNK_SIZE)) {
                     const [jRes, tsRes, snapRes] = await Promise.all([
                         supabaseClient.from('trade_journal').select('group_no, note, trade_tags(tags(id, name))').in('group_no', chunk),
@@ -2004,7 +2141,7 @@
                         </div>
                     </div>
 
-                    <!-- ТЕГИ (УНИВЕРСАЛЬНЫЙ TAGPICKER) -->
+                    <!-- ТЕГИ -->
                     <div id="tag-picker-${g.group_no}"></div>
 
                     <!-- ЗАМЕТКА -->
